@@ -1,3 +1,7 @@
+# KOB db files
+db.json
+db_production.json
+
 # Logs
 logs
 *.log
