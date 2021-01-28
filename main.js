@@ -106,8 +106,8 @@ function scanVoiceChannels() {
  * db IS FOR DEVELOPMENT, db_production IS FOR PRODUCTION
  */
 const VERBOSE = true;
-var db = new DB('db.json');
-// var db = new DB('db_production.json');
+// var db = new DB('db.json');
+var db = new DB('db_production.json');
 var currentGuild;
 const RequiredPermissions = new Discord.Permissions([
     'VIEW_CHANNEL',
@@ -334,7 +334,7 @@ setInterval(() => {
             tempDuration = tempDuration.add(5, 'seconds');
             user.totalTime = tempDuration.toJSON();
             if (verboseMessageLimit == 10) {
-                verbose(`[KOB] Incrementing ${user.id}'s totalTime by 60 seconds: ${tempDuration.toJSON()}`);
+                verbose(`[KOB] Incrementing ${toIncrement.length} users' totalTime by 60 seconds`);
                 verboseMessageLimit = 0;
             }
         }
