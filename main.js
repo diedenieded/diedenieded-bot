@@ -4,7 +4,7 @@
  */
 
 const Discord = require('discord.js');
-const client = new Discord.Client({autoReconnect: true});
+const client = new Discord.Client({ autoReconnect: true });
 const dayjs = require('dayjs');
 dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
@@ -75,19 +75,21 @@ function scanVoiceChannels() {
         if (channel.id != currentGuild.afkChannelID && channel.members.size != 0) {
             verbose(`[KOB] Processing members in ${channel.name}`);
             channel.members.each(member => {
-                verbose(`[KOB] Checking if user ${member.displayName} with ID ${member.id} exists in db`);
-                if (db.users.exists(member.id)) {
-                    verbose(`[KOB] User found, adding user to toIncrement`);
-                    toIncrement.push(db.users.findByID(member.id));
-                    verbose(`[KOB] Contents of toIncrement: `);
-                    toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
-                } else {
-                    verbose(`[KOB] User does not exist, creating new user in DB`);
-                    db.users.addUser(new DB.User(member.id, 'P0D'));
-                    db.write();
-                    verbose(`[KOB] Adding newly created user to toIncrement`);
-                    toIncrement.push(db.users.findByID(member.id));
-                    toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                if (!member.user.bot) {
+                    verbose(`[KOB] Checking if user ${member.displayName} with ID ${member.id} exists in db`);
+                    if (db.users.exists(member.id)) {
+                        verbose(`[KOB] User found, adding user to toIncrement`);
+                        toIncrement.push(db.users.findByID(member.id));
+                        verbose(`[KOB] Contents of toIncrement: `);
+                        toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                    } else {
+                        verbose(`[KOB] User does not exist, creating new user in DB`);
+                        db.users.addUser(new DB.User(member.id, 'P0D'));
+                        db.write();
+                        verbose(`[KOB] Adding newly created user to toIncrement`);
+                        toIncrement.push(db.users.findByID(member.id));
+                        toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                    }
                 }
             });
         } else {
@@ -174,7 +176,7 @@ client.on('message', message => {
     if (message.content.charAt(0) == db.config.prefix) {
         let command;
         let args;
-        
+
         //#region Command processing
         let spaceBeforeArgs = message.content.indexOf(' ');
         if (spaceBeforeArgs == -1) {
