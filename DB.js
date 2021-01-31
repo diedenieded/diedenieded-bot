@@ -1,7 +1,7 @@
 const fs = require('fs');
 
 class Config {
-    guildID; prefix; token;
+    guildID; prefix; token; announcementID;
 }
 
 class Users {
@@ -34,6 +34,10 @@ class Users {
     getArray() {
         return this.#array;
     }
+
+    clearUsers() {
+        this.#array = [];
+    }
 }
 
 class User {
@@ -55,6 +59,7 @@ class DB {
                 users: [],
                 config: {
                     guildID: '-1',
+                    announcementID: '-1',
                     prefix: '^',
                     token: null
                 }
@@ -70,12 +75,14 @@ class DB {
         this.config.guildID = this.#object.config.guildID;
         this.config.prefix = this.#object.config.prefix;
         this.config.token = this.#object.config.token;
+        this.config.announcementID = this.#object.config.announcementID;
     }
 
     write() {
         this.#object.users = this.users.getArray();
         this.#object.config.guildID = this.config.guildID;
         this.#object.config.prefix = this.config.prefix;
+        this.#object.config.announcementID = this.config.announcementID;
         try {
             fs.writeFileSync(this.#path, JSON.stringify(this.#object));    
         } catch (error) {

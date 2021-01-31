@@ -9,6 +9,28 @@ const dayjs = require('dayjs');
 dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
 const { duration } = require('dayjs');
+const schedule = require('node-schedule');
+var monthlyReset;
+
+/**
+ * Necessary global variables
+ * VERBOSE - Toggles verbose output
+ * db - json containing all information required
+ * currentGuild - current Guild selected, will be using new Discord.Guild if not configured in db
+ * 
+ * db IS FOR DEVELOPMENT, db_production IS FOR PRODUCTION
+ */
+const VERBOSE = true;
+// var db = new DB('db.json');
+var db = new DB('db_production.json');
+var currentGuild;
+const RequiredPermissions = new Discord.Permissions([
+    'VIEW_CHANNEL',
+    'SEND_MESSAGES',
+    'EMBED_LINKS',
+    'MENTION_EVERYONE',
+    'READ_MESSAGE_HISTORY'
+]);
 
 /**
  * Helper functions and variables below
@@ -18,13 +40,13 @@ function verbose(log) {
 }
 
 // Main code used to fetch members using provided IDs, create an embedded message and send to channel
-function HoursHelperSendEmbed(tempIDs, channel) {
+function HoursHelperSendEmbed(tempIDs, channel, afterFunction) {
     currentGuild.members.fetch({ user: tempIDs })
         .then(users => {
             let tempEmbed = new Discord.MessageEmbed();
             let exists = true;
             let userThatDoesNotExist;
-            tempEmbed.setColor('#0062ff');
+            tempEmbed.setColor('#fbec5d');
             tempEmbed.setAuthor(`${db.config.prefix}hours`);
             tempEmbed.setFooter(client.user.username, client.user.avatarURL());
             tempEmbed.setTimestamp();
@@ -64,6 +86,9 @@ function HoursHelperSendEmbed(tempIDs, channel) {
                     verbose('[HOURS] Embedded message sent');
                 }).catch(console.error);
             }
+            if (afterFunction != undefined) {
+                afterFunction();
+            }
         }).catch(console.error);
 }
 
@@ -98,27 +123,34 @@ function scanVoiceChannels() {
     });
 }
 
+function monthlyHoursReset() {
+    let channel = currentGuild.channels.resolve(db.config.announcementID);
+    let tempUsers = [];
+    let tempIDs = [];
+    if (channel != null) {
+        channel.send('@everyone');
+        let tempEmbed = new Discord.MessageEmbed()
+            .setColor('#fbec5d')
+            .setTitle('Monthly Voice Hours Reset')
+            .setDescription(`Your voice hours has been reset. You can check your hours for ${dayjs().subtract(1, 'day').format('MMMM')} below`)
+            .setFooter(client.user.username, client.user.avatarURL())
+            .setTimestamp();
+        channel.send(tempEmbed);
+        tempUsers = JSON.parse(JSON.stringify(db.users.getArray())); // Deep copy
+        tempUsers.forEach(user => {
+            tempIDs.push(user.id);
+        });
+        HoursHelperSendEmbed(tempIDs, channel, () => {
+            db.users.clearUsers();
+            db.write();
+        });
+    }
+}
+
 
 /**
- * Necessary global variables
- * VERBOSE - Toggles verbose output
- * db - json containing all information required
- * currentGuild - current Guild selected, will be using new Discord.Guild if not configured in db
- * 
- * db IS FOR DEVELOPMENT, db_production IS FOR PRODUCTION
+ * client events below
  */
-const VERBOSE = true;
-// var db = new DB('db.json');
-var db = new DB('db_production.json');
-var currentGuild;
-const RequiredPermissions = new Discord.Permissions([
-    'VIEW_CHANNEL',
-    'SEND_MESSAGES',
-    'EMBED_LINKS',
-    'MENTION_EVERYONE',
-    'READ_MESSAGE_HISTORY'
-]);
-
 
 /**
  * Initialize here, mind async discord functions
@@ -140,6 +172,7 @@ client.on('ready', () => {
                 currentGuild.members.fetch(client.user.id).then(user => {
                     verbose(`[KOB] Does bot have required permissions?: ${user.permissions.has(RequiredPermissions)}`);
                     console.log('[KOB] Bot is ready!');
+                    monthlyReset = schedule.scheduleJob('0 0 1 * *', monthlyHoursReset);
                     scanVoiceChannels();
                 });
             })
@@ -244,12 +277,13 @@ client.on('message', message => {
                 tempEmbed.setTitle('Help');
                 tempEmbed.setFooter(client.user.username, client.user.avatarURL());
                 tempEmbed.setTimestamp();
-                tempEmbed.setColor('#00d1e0');
+                tempEmbed.setColor('#fbec5d');
                 tempEmbed.addFields(
-                    { name: `${db.config.prefix}hours [args...]`, value: 'Displays the total voice chat members. Arguments can either be empty to show all members\'s hours, or @user to show that user\'s hours' },
+                    { name: `${db.config.prefix}hours [user...]`, value: 'Displays the total voice chat members. Arguments can either be empty to show all members\'s hours, or @user to show that user\'s hours' },
                     { name: `${db.config.prefix}ping`, value: 'Pong! Shows average latency between KOB and you' },
-                    { name: `${db.config.prefix}prefix [args]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
-                    { name: `${db.config.prefix}setguild`, value: 'Sets the current guild as the bot\'s active guild. Can only be used once when initially setting up the bot' }
+                    { name: `${db.config.prefix}prefix [symbol]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
+                    { name: `${db.config.prefix}setguild`, value: 'Sets the current guild as the bot\'s active guild. Can only be used once when initially setting up the bot' },
+                    { name: `${db.config.prefix}setannouncement [channel id]`, value: 'Sets the announcement channel for bot to send announcements' }
                 );
                 verbose('[HELP] Sending embed');
                 message.channel.send(tempEmbed);
@@ -263,6 +297,20 @@ client.on('message', message => {
                     message.reply(`guild has been set to ${message.guild.name}!`);
                 } else {
                     message.reply('guild has already been set. You cannot change it anymore!');
+                }
+                break;
+            case 'setannouncement':
+                if (args != null) {
+                    let tempChannel;
+                    tempChannel = currentGuild.channels.resolve(args);
+                    if (tempChannel != null) {
+                        db.config.announcementID = args;
+                        db.write();
+                        message.reply(`the announcement channel has been set to "${tempChannel.name}".`);
+                        console.log(`[KOB] Announcment channel has been set to ${tempChannel.name}`);
+                    } else {
+                        message.reply('this channel is not valid!');
+                    }
                 }
                 break;
         }
