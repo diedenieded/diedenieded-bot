@@ -21,8 +21,8 @@ var monthlyReset;
  * db IS FOR DEVELOPMENT, db_production IS FOR PRODUCTION
  */
 const VERBOSE = true;
-var db = new DB('db.json');
-// var db = new DB('db_production.json');
+// var db = new DB('db.json');
+var db = new DB('db_production.json');
 var currentGuild;
 const RequiredPermissions = new Discord.Permissions([
     'VIEW_CHANNEL',
@@ -222,8 +222,7 @@ client.on('ready', () => {
 });
 
 // Connection loss
-client.on('shardError', (err) => {
-    verbose('[KOB] ' + err);
+client.on('shardReconnecting', (err) => {
     console.log('[KOB] KOB thinks connection is lost, toIncrement has been cleared');
     toIncrement = [];
 });
@@ -486,4 +485,8 @@ setInterval(() => {
     db.write();
 }, 5000);
 
-client.login(db.config.token);
+client.login(db.config.token).catch(err => {
+    console.log('[KOB] Unable to log in, exiting');
+    verbose(err);
+    process.exit(1);
+});
