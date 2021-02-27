@@ -21,8 +21,8 @@ var monthlyReset;
  * db IS FOR DEVELOPMENT, db_production IS FOR PRODUCTION
  */
 const VERBOSE = true;
-// var db = new DB('db.json');
-var db = new DB('db_production.json');
+var db = new DB('db.json');
+// var db = new DB('db_production.json');
 var currentGuild;
 const RequiredPermissions = new Discord.Permissions([
     'VIEW_CHANNEL',
@@ -128,6 +128,7 @@ function monthlyHoursReset() {
     let tempUsers = [];
     let tempIDs = [];
     if (channel != null) {
+        console.log('[KOB] Initiating monthly hours reset');
         channel.send('@everyone');
         let tempEmbed = new Discord.MessageEmbed()
             .setColor('#fbec5d')
@@ -140,13 +141,53 @@ function monthlyHoursReset() {
         tempUsers.forEach(user => {
             tempIDs.push(user.id);
         });
+        currentGuild.members.fetch({ user: tempIDs }).then(users => {
+            users.each(user => {
+                verbose('[KOB] Removing role for ' + user.displayName);
+                user.roles.remove(db.config.ranks[0]);
+                user.roles.remove(db.config.ranks[1]);
+                user.roles.remove(db.config.ranks[2]);
+                user.roles.remove(db.config.ranks[3]);
+                user.roles.remove(db.config.ranks[4]);
+                user.roles.remove(db.config.ranks[5]);
+            });
+        });
         HoursHelperSendEmbed(tempIDs, channel, () => {
             db.users.clearUsers();
             db.write();
+            scanVoiceChannels();
         });
     }
 }
 
+function setRole(userID, roleID) {
+    currentGuild.members.fetch(userID).then(user => {
+        verbose('[KOB] Setting role for ' + user.displayName);
+        user.roles.add(roleID);
+    });
+}
+
+function removeRole(userID, roleID) {
+    currentGuild.members.fetch(userID).then(user => {
+        verbose('[KOB] Removing role for ' + user.displayName);
+        user.roles.remove(roleID);
+    });
+}
+
+function directMessage(userID, message) {
+    client.users.fetch(userID)
+        .then(user => {
+            user.createDM()
+                .then(dm => {
+                    dm.send(message)
+                        .catch(err => {
+                            console.log(`[KOB] Unable to direct message ${user.username}, bot may have been blocked.`);
+                            verbose(err);
+                        });
+                });
+
+        });
+}
 
 /**
  * client events below
@@ -180,12 +221,14 @@ client.on('ready', () => {
     }
 });
 
+// Connection loss
 client.on('shardError', (err) => {
     verbose('[KOB] ' + err);
     console.log('[KOB] KOB thinks connection is lost, toIncrement has been cleared');
     toIncrement = [];
 });
 
+// Connection back
 client.on('shardResume', () => {
     console.log('[KOB] Reconnected successfully');
     client.user.setActivity(`${db.config.prefix}help`)
@@ -313,6 +356,9 @@ client.on('message', message => {
                     }
                 }
                 break;
+            case 'dm': {
+                directMessage(message.author.id, "Test");
+            }
         }
     }
 });
@@ -382,6 +428,54 @@ setInterval(() => {
         if (toIncrement.length > 0) {
             let tempDuration = new dayjs.duration(user.totalTime);
             tempDuration = tempDuration.add(5, 'seconds');
+            // tempDuration = tempDuration.add('10', 'hours');
+            // Assignment role
+            switch (tempDuration.asHours()) {
+                case 10:
+                    if (tempDuration.seconds() == 0) {
+                        setRole(user.id, db.config.ranks[5]);
+                        directMessage(user.id, `Congratulations <@${user.id}>, you've been promoted to **${currentGuild.roles.resolve(db.config.ranks[5]).name}** on **${currentGuild.name}**!`);
+                    }
+                    break;
+                case 20:
+                    if (tempDuration.seconds() == 0) {
+                        setRole(user.id, db.config.ranks[4]);
+                        removeRole(user.id, db.config.ranks[5]);
+                        directMessage(user.id, `Congratulations <@${user.id}>, you've been promoted to **${currentGuild.roles.resolve(db.config.ranks[4]).name}** on **${currentGuild.name}**!`);
+                    }
+                    break;
+                case 30:
+                    if (tempDuration.seconds() == 0) {
+                        setRole(user.id, db.config.ranks[3]);
+                        removeRole(user.id, db.config.ranks[4]);
+                        directMessage(user.id, `Congratulations <@${user.id}>, you've been promoted to **${currentGuild.roles.resolve(db.config.ranks[3]).name}** on **${currentGuild.name}**!`);
+                    }
+                    break;
+                case 40:
+                    if (tempDuration.seconds() == 0) {
+                        setRole(user.id, db.config.ranks[2]);
+                        removeRole(user.id, db.config.ranks[3]);
+                        directMessage(user.id, `Congratulations <@${user.id}>, you've been promoted to **${currentGuild.roles.resolve(db.config.ranks[2]).name}** on **${currentGuild.name}**!`);
+                    }
+                    break;
+                case 50:
+                    if (tempDuration.seconds() == 0) {
+                        setRole(user.id, db.config.ranks[1]);
+                        removeRole(user.id, db.config.ranks[2]);
+                        directMessage(user.id, `Congratulations <@${user.id}>, you've been promoted to **${currentGuild.roles.resolve(db.config.ranks[1]).name}** on **${currentGuild.name}**!`);
+                    }
+                    break;
+                case 60:
+                    if (tempDuration.seconds() == 0) {
+                        setRole(user.id, db.config.ranks[0]);
+                        removeRole(user.id, db.config.ranks[1]);
+                        directMessage(user.id, `Congratulations <@${user.id}>, you've been promoted to **${currentGuild.roles.resolve(db.config.ranks[0]).name}** on **${currentGuild.name}**!`);
+                    }
+                    break;
+                default:
+                    break;
+            }
+
             user.totalTime = tempDuration.toJSON();
             if (verboseMessageLimit == 10) {
                 verbose(`[KOB] Incrementing ${toIncrement.length} users' totalTime by 60 seconds`);
