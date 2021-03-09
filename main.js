@@ -5,6 +5,7 @@
 
 const Discord = require('discord.js');
 const client = new Discord.Client({ autoReconnect: true });
+const fs = require('fs');
 const dayjs = require('dayjs');
 dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
@@ -13,6 +14,7 @@ const schedule = require('node-schedule');
 const { getFips } = require('crypto');
 const { title } = require('process');
 const e = require('express');
+const { fstat } = require('fs');
 var monthlyReset, weeklyReset;
 
 /**
@@ -26,7 +28,6 @@ var monthlyReset, weeklyReset;
 const VERBOSE = true;
 const ENABLE_CONTROL_PANEL = true;
 var db = new DB('db.json');
-// var db = new DB('db_production.json');
 var currentGuild;
 const RequiredPermissions = new Discord.Permissions([
     'VIEW_CHANNEL',
@@ -597,147 +598,143 @@ client.login(db.config.token).catch(err => {
  ****************************************/
 
 if (ENABLE_CONTROL_PANEL) {
-    //client.on('ready', () => {
-    const PORT = 80;
-    const express = require('express');
-    const app = express();
-    const http = require('http').Server(app);
-    const io = require('socket.io')(http, {
-        cors: {
-            origin: "https://diedenieded.github.io",
-            methods: ["GET", "POST"]
-        }
-    });
+    client.on('ready', () => {
+        const PORT = 3000;
+        const express = require('express');
+        const app = express();
+        const https = require('https').createServer({
+            key: fs.readFileSync('server.key'),
+            cert: fs.readFileSync('server.cert')
+        },app);
+        const io = require('socket.io')(https, {
+            cors: {
+                origin: "https://diedenieded.github.io",
+                methods: ["GET", "POST"]
+            }
+        });
 
-    // const path = require('path');
-    // app.use(express.static(path.join(__dirname, 'control_panel')));
+        io.on('connection', (socket) => {
+            // Here
+            let currentAuthPair = returnAuth(socket.handshake.auth.token);
+            if (currentAuthPair == null) {
+                socket.disconnect(true);
+                verbose('[KOBCTRL] Invalid credentials, connection has been terminated');
+                return;
+            }
 
-    // app.get('/', (req, res) => {
-    //     res.send(index.html);
-    // });
+            verbose('[KOBCTRL] Control panel has connected');
+            socket.on('get', type => {
+                if (type == 'connection-info') {
+                    if (currentGuild) {
+                        currentGuild.members.fetch(currentAuthPair.user_id).then(member => {
+                            let tempJSON = {
+                                server: currentGuild.name,
+                                server_avatar: currentGuild.iconURL({
+                                    dyanamic: true,
+                                    size: 32
+                                }),
+                                bot: client.user.username,
+                                bot_avatar: client.user.displayAvatarURL({
+                                    dyanamic: true,
+                                    size: 32
+                                }),
+                                user: member.displayName,
+                                user_avatar: member.user.displayAvatarURL({
+                                    dyanamic: true,
+                                    size: 32
+                                })
+                            }
+                            socket.emit('reply', 'connection-info', JSON.stringify(tempJSON));
+                        });
+                    }
+                }
+                if (type == 'guild-text-channels') {
+                    if (currentGuild) {
+                        let arr = [];
+                        currentGuild.channels.cache.each(channel => {
+                            if (channel.type == 'text') {
+                                let temp = {
+                                    name: channel.name,
+                                    id: channel.id
+                                };
+                                arr.push(temp);
+                            }
+                        });
+                        let jayson = JSON.stringify(arr);
+                        socket.emit('reply', 'guild-text-channels', jayson);
+                    }
+                }
 
-    io.on('connection', (socket) => {
-        // Here
-        let currentAuthPair = returnAuth(socket.handshake.auth.token);
-        if (currentAuthPair == null) {
-            socket.disconnect(true);
-            verbose('[KOBCTRL] Invalid credentials, connection has been terminated');
-            return;
-        }
+                if (type == 'voice-hours') {
+                    sendCurrentVoiceMembers();
+                }
+            });
 
-        verbose('[KOBCTRL] Control panel has connected');
-        socket.on('get', type => {
-            if (type == 'connection-info') {
-                if (currentGuild) {
-                    currentGuild.members.fetch(currentAuthPair.user_id).then(member => {
-                        let tempJSON = {
-                            server: currentGuild.name,
-                            server_avatar: currentGuild.iconURL({
-                                dyanamic: true,
-                                size: 32
-                            }),
-                            bot: client.user.username,
-                            bot_avatar: client.user.displayAvatarURL({
-                                dyanamic: true,
-                                size: 32
-                            }),
-                            user: member.displayName,
-                            user_avatar: member.user.displayAvatarURL({
-                                dyanamic: true,
-                                size: 32
-                            })
-                        }
-                        socket.emit('reply', 'connection-info', JSON.stringify(tempJSON));
+            socket.on('send', (type, data) => {
+                if (type == 'embed') {
+                    let temp = JSON.parse(data);
+                    webSendEmbed(temp);
+                }
+            });
+
+            // Send info to control panel: uptime, currentGuild.name, currentGuild avatarURL, client.user.username, 
+            // client.user.avatarURL({format: 'gif', dynamic: true, size: 32})
+            function sendCurrentVoiceMembers() {
+                if (currentGuild && db.users) {
+                    console.log('[KOB] Fetching voice hours and sending to control panel');
+                    var tempIDs = [];
+                    var tempUsers = [];
+
+                    db.users.getArray().forEach(user => {
+                        tempIDs.push(user.id);
                     });
+                    currentGuild.members.fetch({ user: tempIDs })
+                        .then(members => {
+                            members.each(member => {
+                                let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
+                                let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
+                                let timeString = '';
+                                if (totalHours > 0) {
+                                    timeString = timeString.concat(`${totalHours} hours `);
+                                }
+                                timeString = timeString.concat(`${tempDuration.format('mm[ minutes and ]ss[ seconds]')}`);
+                                let user = {
+                                    displayName: member.displayName,
+                                    avatarURL: `https://cdn.discordapp.com/avatars/${member.id}/${member.user.avatar}.png?size=256`,
+                                    timeraw: `${tempDuration.toJSON()}`,
+                                    time: timeString
+                                }
+                                tempUsers.push(user);
+                            });
+                            tempUsers = tempUsers.sort((a, b) => {
+                                let aSort = dayjs.duration(a.timeraw).asSeconds();
+                                let bSort = dayjs.duration(b.timeraw).asSeconds();
+                                return bSort - aSort;
+                            });
+                            socket.emit('reply', 'voice-hours', JSON.stringify(tempUsers));
+                        }).catch(console.error);
                 }
             }
-            if (type == 'guild-text-channels') {
-                if (currentGuild) {
-                    let arr = [];
-                    currentGuild.channels.cache.each(channel => {
-                        if (channel.type == 'text') {
-                            let temp = {
-                                name: channel.name,
-                                id: channel.id
-                            };
-                            arr.push(temp);
-                        }
-                    });
-                    let jayson = JSON.stringify(arr);
-                    socket.emit('reply', 'guild-text-channels', jayson);
+
+            socket.on('get-weekly-voice-hours', () => {
+                if (db.week) {
+                    console.log('[KOB] Fetching weekly voice hours and sending to control panel');
+                    let tempHours = [
+                        parseFloat(dayjs.duration(db.week.sunday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.monday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.tuesday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.wednesday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.thursday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.friday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.saturday).asHours().toFixed(2))
+                    ];
+                    socket.emit('sent-weekly-voice-hours', JSON.stringify(tempHours));
                 }
-            }
-
-            if (type == 'voice-hours') {
-                sendCurrentVoiceMembers();
-            }
+            });
         });
 
-        socket.on('send', (type, data) => {
-            if (type == 'embed') {
-                let temp = JSON.parse(data);
-                webSendEmbed(temp);
-            }
-        });
-
-        // Send info to control panel: uptime, currentGuild.name, currentGuild avatarURL, client.user.username, 
-        // client.user.avatarURL({format: 'gif', dynamic: true, size: 32})
-        function sendCurrentVoiceMembers() {
-            if (currentGuild && db.users) {
-                console.log('[KOB] Fetching voice hours and sending to control panel');
-                var tempIDs = [];
-                var tempUsers = [];
-
-                db.users.getArray().forEach(user => {
-                    tempIDs.push(user.id);
-                });
-                currentGuild.members.fetch({ user: tempIDs })
-                    .then(members => {
-                        members.each(member => {
-                            let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
-                            let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
-                            let timeString = '';
-                            if (totalHours > 0) {
-                                timeString = timeString.concat(`${totalHours} hours `);
-                            }
-                            timeString = timeString.concat(`${tempDuration.format('mm[ minutes and ]ss[ seconds]')}`);
-                            let user = {
-                                displayName: member.displayName,
-                                avatarURL: `https://cdn.discordapp.com/avatars/${member.id}/${member.user.avatar}.png?size=256`,
-                                timeraw: `${tempDuration.toJSON()}`,
-                                time: timeString
-                            }
-                            tempUsers.push(user);
-                        });
-                        tempUsers = tempUsers.sort((a, b) => {
-                            let aSort = dayjs.duration(a.timeraw).asSeconds();
-                            let bSort = dayjs.duration(b.timeraw).asSeconds();
-                            return bSort - aSort;
-                        });
-                        socket.emit('reply', 'voice-hours', JSON.stringify(tempUsers));
-                    }).catch(console.error);
-            }
-        }
-
-        socket.on('get-weekly-voice-hours', () => {
-            if (db.week) {
-                console.log('[KOB] Fetching weekly voice hours and sending to control panel');
-                let tempHours = [
-                    parseFloat(dayjs.duration(db.week.sunday).asHours().toFixed(2)),
-                    parseFloat(dayjs.duration(db.week.monday).asHours().toFixed(2)),
-                    parseFloat(dayjs.duration(db.week.tuesday).asHours().toFixed(2)),
-                    parseFloat(dayjs.duration(db.week.wednesday).asHours().toFixed(2)),
-                    parseFloat(dayjs.duration(db.week.thursday).asHours().toFixed(2)),
-                    parseFloat(dayjs.duration(db.week.friday).asHours().toFixed(2)),
-                    parseFloat(dayjs.duration(db.week.saturday).asHours().toFixed(2))
-                ];
-                socket.emit('sent-weekly-voice-hours', JSON.stringify(tempHours));
-            }
+        https.listen(PORT, () => {
+            console.log(`[KOBCTRL] Socket.IO listening on port ${PORT}`);
         });
     });
-
-    http.listen(PORT, () => {
-        console.log(`[KOBCTRL] Socket.IO listening on port ${PORT}`);
-    });
-    //});
 }

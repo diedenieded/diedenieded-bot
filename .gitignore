@@ -4,6 +4,7 @@ db_production.json
 kindred_invicta.json
 ki_build.js
 cult*
+server.*
 
 # Logs
 logs
