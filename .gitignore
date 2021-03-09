@@ -1,6 +1,9 @@
 # KOB db files
 db.json
 db_production.json
+kindred_invicta.json
+ki_build.js
+cult*
 
 # Logs
 logs

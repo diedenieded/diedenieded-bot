@@ -10,19 +10,23 @@ dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
 const { duration } = require('dayjs');
 const schedule = require('node-schedule');
-var monthlyReset;
+const { getFips } = require('crypto');
+const { title } = require('process');
+const e = require('express');
+var monthlyReset, weeklyReset;
 
 /**
  * Necessary global variables
  * VERBOSE - Toggles verbose output
  * db - json containing all information required
- * currentGuild - current Guild selected, will be using new Discord.Guild if not configured in db
- * 
  * db IS FOR DEVELOPMENT, db_production IS FOR PRODUCTION
+ * currentGuild - current Guild selected, will be using new Discord.Guild if not configured in db
+ * toIncrement - this array contains users whose time needs to be incremented, contains GuildMember type
  */
 const VERBOSE = true;
-// var db = new DB('db.json');
-var db = new DB('db_production.json');
+const ENABLE_CONTROL_PANEL = true;
+var db = new DB('db.json');
+// var db = new DB('db_production.json');
 var currentGuild;
 const RequiredPermissions = new Discord.Permissions([
     'VIEW_CHANNEL',
@@ -31,6 +35,7 @@ const RequiredPermissions = new Discord.Permissions([
     'MENTION_EVERYONE',
     'READ_MESSAGE_HISTORY'
 ]);
+var toIncrement = [];
 
 /**
  * Helper functions and variables below
@@ -104,16 +109,18 @@ function scanVoiceChannels() {
                     verbose(`[KOB] Checking if user ${member.displayName} with ID ${member.id} exists in db`);
                     if (db.users.exists(member.id)) {
                         verbose(`[KOB] User found, adding user to toIncrement`);
-                        toIncrement.push(db.users.findByID(member.id));
+                        //toIncrement.push(db.users.findByID(member.id));
+                        toIncrement.push(member);
                         verbose(`[KOB] Contents of toIncrement: `);
-                        toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                        toIncrement.forEach(member => { verbose(`[toIncrement] ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
                     } else {
                         verbose(`[KOB] User does not exist, creating new user in DB`);
                         db.users.addUser(new DB.User(member.id, 'P0D'));
                         db.write();
                         verbose(`[KOB] Adding newly created user to toIncrement`);
-                        toIncrement.push(db.users.findByID(member.id));
-                        toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                        //toIncrement.push(db.users.findByID(member.id));
+                        toIncrement.push(member);
+                        toIncrement.forEach(user => { verbose(`[toIncrement] ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
                     }
                 }
             });
@@ -123,6 +130,7 @@ function scanVoiceChannels() {
     });
 }
 
+// Used to trigger monthly hours reset, scheduled in initialization
 function monthlyHoursReset() {
     let channel = currentGuild.channels.resolve(db.config.announcementID);
     let tempUsers = [];
@@ -160,6 +168,11 @@ function monthlyHoursReset() {
     }
 }
 
+function weeklyHoursReset() {
+    db.week = new DB.Week();
+    db.write();
+}
+
 function setRole(userID, roleID) {
     currentGuild.members.fetch(userID).then(user => {
         verbose('[KOB] Setting role for ' + user.displayName);
@@ -189,9 +202,57 @@ function directMessage(userID, message) {
         });
 }
 
-/**
- * client events below
- */
+// Creates and sends an embedded message using data from web control panel
+function webSendEmbed(data) {
+    let embed = new Discord.MessageEmbed();
+    if (data.author.length > 0) { // Author required, Author Icon not
+        if (data.author_avatar_url.length > 0) {
+            embed.setAuthor(data.author, data.author_avatar_url);
+        } else {
+            embed.setAuthor(data.author);
+        }
+    }
+    if (data.title.length > 0) embed.setTitle(data.title);
+    if (data.content_text.length > 0) embed.setDescription(data.content_text);
+    if (data.thumbnail_url.length > 0) embed.setThumbnail(data.thumbnail_url);
+    console.log(data.fields);
+    data.fields.forEach(field => {
+        if ("title" in field && "text" in field) {
+            if (field.title.length > 0) {
+                embed.addField(field.title, field.text);
+            }
+        }
+    });
+    if (data.main_image_url.length > 0) {
+        embed.setImage(data.main_image_url);
+    }
+    if (data.footer_text.length > 0) {
+        if (data.footer_icon_url.length > 0) {
+            embed.setFooter(data.footer_text, data.footer_icon_url);
+        } else {
+            embed.setFooter(data.footer_text);
+        }
+    }
+    embed.setColor(data.color_hex);
+    embed.setTimestamp();
+    currentGuild.channels.resolve(data.channel_id).send(embed);
+}
+
+function returnAuth(authkey) {
+    // Returns authkey and user id pair if found, null if not found
+    for (let i = 0; i < db.config.authkey.length; i++) {
+        if (db.config.authkey[i].key == authkey) return db.config.authkey[i];
+    }
+    return null;
+}
+
+/****************************************
+ *                                      *
+ *                                      *
+ * CLIENT EVENTS BELOW                  *
+ *                                      *
+ *                                      *
+ ****************************************/
 
 /**
  * Initialize here, mind async discord functions
@@ -214,6 +275,7 @@ client.on('ready', () => {
                     verbose(`[KOB] Does bot have required permissions?: ${user.permissions.has(RequiredPermissions)}`);
                     console.log('[KOB] Bot is ready!');
                     monthlyReset = schedule.scheduleJob('0 0 1 * *', monthlyHoursReset);
+                    weeklyReset = schedule.scheduleJob('0 0 * * 1', weeklyHoursReset);
                     scanVoiceChannels();
                 });
             })
@@ -380,28 +442,30 @@ client.on('voiceStateUpdate', (oldVoiceState, newVoiceState) => {
             verbose(`[KOB] Checking if user ${newVoiceState.member.displayName} with ID ${newVoiceState.member.id} exists in db`);
             if (db.users.exists(newVoiceState.member.id)) {
                 verbose(`[KOB] User found, adding user to toIncrement`);
-                toIncrement.push(db.users.findByID(newVoiceState.member.id));
+                //toIncrement.push(db.users.findByID(newVoiceState.member.id));
+                toIncrement.push(newVoiceState.member);
                 verbose(`[KOB] Contents of toIncrement: `);
-                toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                toIncrement.forEach(member => { verbose(`[toIncrement] ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
             } else {
                 verbose(`[KOB] User does not exist, creating new user in DB`);
                 db.users.addUser(new DB.User(newVoiceState.member.id, 'P0D'));
                 db.write();
                 verbose(`[KOB] Adding newly created user to toIncrement`);
-                toIncrement.push(db.users.findByID(newVoiceState.member.id));
-                toIncrement.forEach(user => { verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                //toIncrement.push(db.users.findByID(newVoiceState.member.id));
+                toIncrement.push(newVoiceState.member);
+                toIncrement.forEach(member => { verbose(`[toIncrement] ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
             }
         }
         if ((oldVoiceState.channelID != currentGuild.afkChannelID && newVoiceState.channelID == null) || (newVoiceState.channelID == currentGuild.afkChannelID && oldVoiceState.channelID != null)) {
             // Disconnect procedure
             verbose('[KOB] Carrying out disconnect procedure');
-            verbose(`[KOB] Checking if user with ID ${newVoiceState.member.id} exists in toIncrement`);
+            verbose(`[KOB] Checking if user ${newVoiceState.member.displayName} with ID ${newVoiceState.member.id} exists in toIncrement`);
             let tempIndex = toIncrement.findIndex(elm => elm.id == newVoiceState.member.id);
             if (tempIndex != -1) {
                 verbose(`[KOB] User with ID ${newVoiceState.member.id} exists at index ${tempIndex} in toIncrement, removing...`);
                 toIncrement.splice(tempIndex, 1);
                 verbose(`[KOB] User with ID ${newVoiceState.member.id} has been removed.`);
-                toIncrement.forEach(user => { if (toIncrement.length > 0) verbose(`[toIncrement] ${user.id}: ${user.totalTime}`) });
+                toIncrement.forEach(member => { if (toIncrement.length > 0) verbose(`[toIncrement] ${member.id}: ${db.users.findByID(member.id).totalTime}`) });
             } else {
                 verbose(`[KOB] User with ID ${newVoiceState.member.id} does not exist in toIncrement, ignored`);
             }
@@ -411,23 +475,16 @@ client.on('voiceStateUpdate', (oldVoiceState, newVoiceState) => {
 
 
 /**
- * toIncrement - this array contains users whose time needs to be incremented by
- * interval function below
- */
-var toIncrement = [];
-
-
-/**
  * This function increments the time of users in toIncrement[]
  */
 var verboseMessageLimit = 0;
 setInterval(() => {
     verboseMessageLimit++;
-    toIncrement.forEach(user => {
-        if (toIncrement.length > 0) {
+    if (toIncrement.length > 2) {
+        toIncrement.forEach(member => {
+            let user = db.users.findByID(member.id);
             let tempDuration = new dayjs.duration(user.totalTime);
             tempDuration = tempDuration.add(5, 'seconds');
-            // tempDuration = tempDuration.add('10', 'hours');
             // Assignment role
             switch (tempDuration.asHours()) {
                 case 10:
@@ -480,9 +537,49 @@ setInterval(() => {
                 verbose(`[KOB] Incrementing ${toIncrement.length} users' totalTime by 60 seconds`);
                 verboseMessageLimit = 0;
             }
+        });
+        if (db.week) {
+            let tempDuration;
+            switch (dayjs().day()) {
+                case 0:
+                    tempDuration = new dayjs.duration(db.week.sunday);
+                    tempDuration = tempDuration.add(5, 'seconds');
+                    db.week.sunday = tempDuration.toJSON();
+                    break;
+                case 1:
+                    tempDuration = new dayjs.duration(db.week.monday);
+                    tempDuration = tempDuration.add(5, 'seconds');
+                    db.week.monday = tempDuration.toJSON();
+                    break;
+                case 2:
+                    tempDuration = new dayjs.duration(db.week.tuesday);
+                    tempDuration = tempDuration.add(5, 'seconds');
+                    db.week.tuesday = tempDuration.toJSON();
+                    break;
+                case 3:
+                    tempDuration = new dayjs.duration(db.week.wednesday);
+                    tempDuration = tempDuration.add(5, 'seconds');
+                    db.week.wednesday = tempDuration.toJSON();
+                    break;
+                case 4:
+                    tempDuration = new dayjs.duration(db.week.thursday);
+                    tempDuration = tempDuration.add(5, 'seconds');
+                    db.week.thursday = tempDuration.toJSON();
+                    break;
+                case 5:
+                    tempDuration = new dayjs.duration(db.week.friday);
+                    tempDuration = tempDuration.add(5, 'seconds');
+                    db.week.friday = tempDuration.toJSON();
+                    break;
+                case 6:
+                    tempDuration = new dayjs.duration(db.week.saturday);
+                    tempDuration = tempDuration.add(5, 'seconds');
+                    db.week.saturday = tempDuration.toJSON();
+                    break;
+            }
         }
-    });
-    db.write();
+        db.write();
+    }
 }, 5000);
 
 client.login(db.config.token).catch(err => {
@@ -490,3 +587,157 @@ client.login(db.config.token).catch(err => {
     verbose(err);
     process.exit(1);
 });
+
+/****************************************
+ *                                      *
+ *                                      *
+ * SOCKET.IO AND CONTROL PANEL BELOW    *
+ *                                      *
+ *                                      *
+ ****************************************/
+
+if (ENABLE_CONTROL_PANEL) {
+    //client.on('ready', () => {
+    const PORT = 80;
+    const express = require('express');
+    const app = express();
+    const http = require('http').Server(app);
+    const io = require('socket.io')(http, {
+        cors: {
+            origin: "https://diedenieded.github.io",
+            methods: ["GET", "POST"]
+        }
+    });
+
+    // const path = require('path');
+    // app.use(express.static(path.join(__dirname, 'control_panel')));
+
+    // app.get('/', (req, res) => {
+    //     res.send(index.html);
+    // });
+
+    io.on('connection', (socket) => {
+        // Here
+        let currentAuthPair = returnAuth(socket.handshake.auth.token);
+        if (currentAuthPair == null) {
+            socket.disconnect(true);
+            verbose('[KOBCTRL] Invalid credentials, connection has been terminated');
+            return;
+        }
+
+        verbose('[KOBCTRL] Control panel has connected');
+        socket.on('get', type => {
+            if (type == 'connection-info') {
+                if (currentGuild) {
+                    currentGuild.members.fetch(currentAuthPair.user_id).then(member => {
+                        let tempJSON = {
+                            server: currentGuild.name,
+                            server_avatar: currentGuild.iconURL({
+                                dyanamic: true,
+                                size: 32
+                            }),
+                            bot: client.user.username,
+                            bot_avatar: client.user.displayAvatarURL({
+                                dyanamic: true,
+                                size: 32
+                            }),
+                            user: member.displayName,
+                            user_avatar: member.user.displayAvatarURL({
+                                dyanamic: true,
+                                size: 32
+                            })
+                        }
+                        socket.emit('reply', 'connection-info', JSON.stringify(tempJSON));
+                    });
+                }
+            }
+            if (type == 'guild-text-channels') {
+                if (currentGuild) {
+                    let arr = [];
+                    currentGuild.channels.cache.each(channel => {
+                        if (channel.type == 'text') {
+                            let temp = {
+                                name: channel.name,
+                                id: channel.id
+                            };
+                            arr.push(temp);
+                        }
+                    });
+                    let jayson = JSON.stringify(arr);
+                    socket.emit('reply', 'guild-text-channels', jayson);
+                }
+            }
+
+            if (type == 'voice-hours') {
+                sendCurrentVoiceMembers();
+            }
+        });
+
+        socket.on('send', (type, data) => {
+            if (type == 'embed') {
+                let temp = JSON.parse(data);
+                webSendEmbed(temp);
+            }
+        });
+
+        // Send info to control panel: uptime, currentGuild.name, currentGuild avatarURL, client.user.username, 
+        // client.user.avatarURL({format: 'gif', dynamic: true, size: 32})
+        function sendCurrentVoiceMembers() {
+            if (currentGuild && db.users) {
+                console.log('[KOB] Fetching voice hours and sending to control panel');
+                var tempIDs = [];
+                var tempUsers = [];
+
+                db.users.getArray().forEach(user => {
+                    tempIDs.push(user.id);
+                });
+                currentGuild.members.fetch({ user: tempIDs })
+                    .then(members => {
+                        members.each(member => {
+                            let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
+                            let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
+                            let timeString = '';
+                            if (totalHours > 0) {
+                                timeString = timeString.concat(`${totalHours} hours `);
+                            }
+                            timeString = timeString.concat(`${tempDuration.format('mm[ minutes and ]ss[ seconds]')}`);
+                            let user = {
+                                displayName: member.displayName,
+                                avatarURL: `https://cdn.discordapp.com/avatars/${member.id}/${member.user.avatar}.png?size=256`,
+                                timeraw: `${tempDuration.toJSON()}`,
+                                time: timeString
+                            }
+                            tempUsers.push(user);
+                        });
+                        tempUsers = tempUsers.sort((a, b) => {
+                            let aSort = dayjs.duration(a.timeraw).asSeconds();
+                            let bSort = dayjs.duration(b.timeraw).asSeconds();
+                            return bSort - aSort;
+                        });
+                        socket.emit('reply', 'voice-hours', JSON.stringify(tempUsers));
+                    }).catch(console.error);
+            }
+        }
+
+        socket.on('get-weekly-voice-hours', () => {
+            if (db.week) {
+                console.log('[KOB] Fetching weekly voice hours and sending to control panel');
+                let tempHours = [
+                    parseFloat(dayjs.duration(db.week.sunday).asHours().toFixed(2)),
+                    parseFloat(dayjs.duration(db.week.monday).asHours().toFixed(2)),
+                    parseFloat(dayjs.duration(db.week.tuesday).asHours().toFixed(2)),
+                    parseFloat(dayjs.duration(db.week.wednesday).asHours().toFixed(2)),
+                    parseFloat(dayjs.duration(db.week.thursday).asHours().toFixed(2)),
+                    parseFloat(dayjs.duration(db.week.friday).asHours().toFixed(2)),
+                    parseFloat(dayjs.duration(db.week.saturday).asHours().toFixed(2))
+                ];
+                socket.emit('sent-weekly-voice-hours', JSON.stringify(tempHours));
+            }
+        });
+    });
+
+    http.listen(PORT, () => {
+        console.log(`[KOBCTRL] Socket.IO listening on port ${PORT}`);
+    });
+    //});
+}
