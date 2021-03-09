@@ -5,7 +5,6 @@
 
 const Discord = require('discord.js');
 const client = new Discord.Client({ autoReconnect: true });
-const fs = require('fs');
 const dayjs = require('dayjs');
 dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
@@ -14,7 +13,6 @@ const schedule = require('node-schedule');
 const { getFips } = require('crypto');
 const { title } = require('process');
 const e = require('express');
-const { fstat } = require('fs');
 var monthlyReset, weeklyReset;
 
 /**
@@ -602,11 +600,8 @@ if (ENABLE_CONTROL_PANEL) {
         const PORT = 3000;
         const express = require('express');
         const app = express();
-        const https = require('https').createServer({
-            key: fs.readFileSync('server.key'),
-            cert: fs.readFileSync('server.cert')
-        },app);
-        const io = require('socket.io')(https, {
+        const http = require('http').Server(app);
+        const io = require('socket.io')(http, {
             cors: {
                 origin: "https://diedenieded.github.io",
                 methods: ["GET", "POST"]
@@ -733,7 +728,7 @@ if (ENABLE_CONTROL_PANEL) {
             });
         });
 
-        https.listen(PORT, () => {
+        http.listen(PORT, () => {
             console.log(`[KOBCTRL] Socket.IO listening on port ${PORT}`);
         });
     });
