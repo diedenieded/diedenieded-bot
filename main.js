@@ -2,7 +2,7 @@
  * diedenieded-bot
  * diedenieded
  */
-const version = "v2021-03-10-0616";
+const version = "v2021-03-10-0926";
 const Discord = require('discord.js');
 const client = new Discord.Client({ autoReconnect: true });
 const dayjs = require('dayjs');
@@ -10,6 +10,7 @@ dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
 const schedule = require('node-schedule');
 var monthlyReset, weeklyReset;
+const defaultEmbedColor = '#27e9e9';
 
 /**
  * Necessary global variables
@@ -45,7 +46,7 @@ function HoursHelperSendEmbed(tempIDs, channel, afterFunction) {
             let tempEmbed = new Discord.MessageEmbed();
             let exists = true;
             let userThatDoesNotExist;
-            tempEmbed.setColor('#fbec5d');
+            tempEmbed.setColor(defaultEmbedColor);
             tempEmbed.setAuthor(`${db.config.prefix}hours`);
             tempEmbed.setFooter(client.user.username, client.user.avatarURL());
             tempEmbed.setTimestamp();
@@ -133,7 +134,7 @@ function monthlyHoursReset() {
         console.log('[DBOT] Initiating monthly hours reset');
         channel.send('@everyone');
         let tempEmbed = new Discord.MessageEmbed()
-            .setColor('#fbec5d')
+            .setColor(defaultEmbedColor)
             .setTitle('Monthly Voice Hours Reset')
             .setDescription(`Your voice hours has been reset. You can check your hours for ${dayjs().subtract(1, 'day').format('MMMM')} below`)
             .setFooter(client.user.username, client.user.avatarURL())
@@ -381,13 +382,14 @@ client.on('message', message => {
                 tempEmbed.setTitle('Help');
                 tempEmbed.setFooter(client.user.username, client.user.avatarURL());
                 tempEmbed.setTimestamp();
-                tempEmbed.setColor('#fbec5d');
+                tempEmbed.setColor(defaultEmbedColor);
                 tempEmbed.addFields(
                     { name: `${db.config.prefix}hours [user...]`, value: 'Displays the total voice chat members. Arguments can either be empty to show all members\'s hours, or @user to show that user\'s hours' },
                     { name: `${db.config.prefix}ping`, value: 'Pong! Shows average latency between DBOT and you' },
                     { name: `${db.config.prefix}prefix [symbol]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
                     { name: `${db.config.prefix}setguild`, value: 'Sets the current guild as the bot\'s active guild. Can only be used once when initially setting up the bot' },
-                    { name: `${db.config.prefix}setannouncement [channel id]`, value: 'Sets the announcement channel for bot to send announcements' }
+                    { name: `${db.config.prefix}setannouncement [channel id]`, value: 'Sets the announcement channel for bot to send announcements' },
+                    { name: `${db.config.prefix}mention [channel id] [user, role or everyone]`, value: 'Mentions specified people' }
                 );
                 verbose('[HELP] Sending embed');
                 message.channel.send(tempEmbed);
@@ -419,6 +421,42 @@ client.on('message', message => {
                 break;
             case 'dm': {
                 directMessage(message.author.id, "Test");
+            }
+            case 'mention': {
+                if (args) {
+                    if (args.length == 0) {
+                        message.reply('you need to choose a channel and mention users or roles');
+                        break;
+                    }
+                } else {
+                    message.reply('you need to choose a channel and mention users or roles');
+                    break;
+                }
+
+                let channelID = args.substring(0, args.indexOf(' '));
+                console.log(channelID);
+                let channel = currentGuild.channels.resolve(channelID);
+                if (!channel) {
+                    message.reply('invalid channel ID!');
+                    break;
+                }
+
+                console.log(message.mentions.everyone);
+                if (message.mentions.everyone) {
+                    channel.send('@everyone');
+                } else if (message.mentions.users.size == 0 && message.mentions.roles.size == 0) {
+                    message.reply('you need to mention users or roles');
+                } else {
+                    let mentions = '';
+                    message.mentions.users.each(user => {
+                        mentions += `<@!${user.id}> `;
+                    });
+                    message.mentions.roles.each(role => {
+                        mentions += `<@&${role.id}> `;
+                    });
+                    console.log(mentions);
+                    channel.send(mentions);
+                }
             }
         }
     }
