@@ -1,0 +1,17 @@
+.nav-pills {
+    height: 50px;
+}
+
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.table, .nav-link {
+    color: white;
+}
+
+#connection-status-bar {
+    height: 10px;
+}

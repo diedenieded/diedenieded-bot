@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control Panel</title>
+  <link rel="stylesheet" href="./css/bootstrap.min.css">
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="shortcut icon" href="img/icon.ico" type="image/x-icon">
+</head>
+
+<body style="background-color: #333; padding-top: 10px; padding-bottom: 10px; color: white;">
+  <div class="container">
+    <nav>
+      <div class="nav nav-pills nav-justified" id="nav-tab" role="tablist">
+        <button class="nav-link" id="nav-home-tab" data-bs-toggle="tab" data-bs-target="#nav-home" type="button"
+          role="tab" aria-controls="nav-home" aria-selected="true">Connection</button>
+        <button class="nav-link disabled" id="nav-profile-tab" data-bs-toggle="tab" data-bs-target="#nav-profile"
+          type="button" role="tab" aria-controls="nav-profile" aria-selected="false">Voice
+          Hours</button>
+        <button class="nav-link disabled active" id="nav-contact-tab" data-bs-toggle="tab" data-bs-target="#nav-contact"
+          type="button" role="tab" aria-controls="nav-contact" aria-selected="false">Embed
+          Message</button>
+        <button class="nav-link disabled" id="nav-react-tab" data-bs-toggle="tab" data-bs-target="#nav-react"
+          type="button" role="tab" aria-controls="nav-contact" aria-selected="false">React Roles</button>
+      </div>
+    </nav>
+    <br>
+    <div id="notificationArea"></div>
+    <div class="tab-content" id="nav-tabContent">
+      <div class="tab-pane fade" id="nav-home" role="tabpanel" aria-labelledby="nav-home-tab">
+        <div class="container-fluid">
+          <div class="row">
+            <div class="col">
+              <h2 id="connStatusTitle">Disconnected</h2>
+              <button style="display: none;" id="reconnect" class="btn btn-primary">Reconnect</button>
+              <div style="display: none;" id="server-info-box">
+                <table class="table table-borderless table-sm">
+                  <tbody>
+                    <tr>
+                      <td style="width: 60px;">Server:</td>
+                      <td><img id="server-avatar" class="avatar" src="" alt="">&Tab;<b id="server-name">Unknown</b></td>
+                    </tr>
+                    <tr>
+                      <td>Bot:</td>
+                      <td><img id="bot-avatar" class="avatar" src="" alt="">&Tab;<b id="bot-name">Unknown</b></td>
+                    </tr>
+                    <tr>
+                      <td>User:</td>
+                      <td><img id="user-avatar" class="avatar" src="" alt="">&Tab;<b id="user-name">Unknown</b></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <button type="button" class="btn btn-danger" onclick="logout()">Logout</button>
+              </div>
+            </div>
+            <div class="col-4">
+              <h2>Login</h2>
+              <form>
+                <div class="mb-3">
+                  <label for="authkey" class="form-label">Password</label>
+                  <input type="password" class="form-control" id="authkey">
+                </div>
+                <div class="mb-3 form-check">
+                  <input type="checkbox" class="form-check-input" id="persistentLogin">
+                  <label class="form-check-label" for="persistentLogin">Stay logged in</label>
+                </div>
+                <button type="submit" id="login" class="btn btn-primary">Login</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="nav-profile" role="tabpanel" aria-labelledby="nav-profile-tab">
+        <div class="container-fluid">
+          <div class="row">
+            <div class="col">
+              <h2>Total Voice Hours <button class="btn btn-primary" onclick="socket.emit('get', 'voice-hours')"
+                  type="button">Refresh</button></h2>
+              <br>
+              <table class="table table-dark table-striped">
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Display Name</th>
+                    <th scope="col">Hours</th>
+                  </tr>
+                </thead>
+                <tbody id="voice-hours">
+                  <tr>
+                    <th scope="row">1</th>
+                    <td>Mark</td>
+                    <td>Otto</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">2</th>
+                    <td>Jacob</td>
+                    <td>Thornton</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">3</th>
+                    <td>Larry the Bird</td>
+                    <td>@twitter</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="col">
+              <h2>Weekly Trends</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane fade show active" id="nav-contact" role="tabpanel" aria-labelledby="nav-contact-tab">
+        <div class="row">
+          <div class="col">
+            <h2>Create Embedded Message</h2>
+            <form>
+              <table class="table table-borderless">
+                <tbody id="main-table">
+                  <tr>
+                    <td style="width: 50%;">
+                      <label for="author" class="form-label">Author</label>
+                      <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="author" aria-describedby="button-addon2">
+                        <button class="btn btn-primary" type="button" onclick="useUserInfo()" id="button-addon2">Use
+                          user info</button>
+                      </div>
+                    </td>
+                    <td>
+                      <label for="author-avatar-url" class="form-label">Author avatar URL</label>
+                      <input type="text" class="form-control" id="author-avatar-url">
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <label for="title" class="form-label">Title</label>
+                      <input type="text" class="form-control" id="title">
+                    <td>
+                      <label for="thumbnail-url" class="form-label">Thumbnail URL</label>
+                      <input type="text" class="form-control" id="thumbnail-url">
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colspan="2">
+                      <label for="content-text" class="form-label">Content Text</label>
+                      <textarea class="form-control" name="content-text" id="content-text" rows="2"
+                        maxlength="2000"></textarea>
+                    </td>
+                  </tr>
+                  <tr style="background-color: #555;">
+                    <td colspan="2">
+                      <label for="field-title-1" class="form-label">Field title</label>
+                      <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="field-title-1" aria-describedby="button-addon4">
+                        <select style="max-width: 120px;" name="" id="field-inline-1" class="form-select">
+                          <option value="false">Regular</option>
+                          <option value="true">Inline</option>
+                        </select>
+                        <button id="add-field" class="btn btn-primary" type="button" id="button-addon4">Add
+                          field</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr style="background-color: #555;">
+                    <td colspan="2">
+                      <label for="field-text-1" class="form-label">Field text</label>
+                      <textarea class="form-control" name="field-text-1" id="field-text-1" rows="2"></textarea>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <table class="table table-borderless">
+                <tr>
+                  <td colspan="2">
+                    <label for="main-image-url" class="form-label">Main Image URL</label>
+                    <input type="text" class="form-control" id="main-image-url">
+                  </td>
+                </tr>
+                <tr>
+                  <td style="width: 50%;">
+                    <label for="footer-text" class="form-label">Footer</label>
+                    <div class="input-group mb-3">
+                      <input type="text" class="form-control" id="footer-text" aria-describedby="button-addon3">
+                      <button class="btn btn-primary" type="button" onclick="useBotInfo()" id="button-addon3">Use bot
+                        info</button>
+                    </div>
+                  </td>
+                  <td>
+                    <label for="footer-icon-url" class="form-label">Footer Icon URL</label>
+                    <input type="text" class="form-control" id="footer-icon-url">
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <label for="select-color" class="form-label">Color</label>
+                    <input type="color" name="select-color" id="select-color" value="#4A6583"
+                      class="form-control form-control-color">
+                  </td>
+                  <td colspan>
+                    <label for="footer-icon-url" class="form-label">Select channel to send</label>
+                    <select class="form-select" id="select-channel" aria-label="Default select example"></select>
+                  </td>
+                </tr>
+              </table>
+              <button type="submit" id="send-embed" class="btn btn-primary">Send embedded message</button>
+              <button type="reset" class="btn btn-warning">Clear all</button>
+            </form>
+          </div>
+          <div class="col-4">
+            <h2>Example</h2>
+            <img style="max-width: 350px; width: 100%; height: auto;" src="./img/visualizer.png" alt="">
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane fade" id="nav-react" role="tabpanel" aria-labelledby="nav-react-tab">
+
+      </div>
+    </div>
+  </div>
+  <br>
+  <div class="fixed-bottom">
+    Web: <span id="web-version"></span><br>
+    Server: <span id="server-version"></span>
+  </div>
+  <script src="./js/jquery-3.6.0.min.js"></script>
+  <script src="./js/bootstrap.bundle.min.js"></script>
+  <script src="./js/socket.io.min.js"></script>
+  <script src="./js/main.js"></script>
+</body>
+
+</html>
