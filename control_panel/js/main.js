@@ -1,4 +1,4 @@
-$('#web-version').text('v2021-03-10-0639');
+$('#web-version').text('v2021-03-17-0426');
 // Variables for page parts
 // Login form variables
 var input_authkey = $('#authkey');
@@ -287,7 +287,9 @@ function useBotInfo() {
 // Code from w3schools
 // https://www.w3schools.com/js/js_cookies.asp
 function setCookie(cname, cvalue) {
-    document.cookie = cname + "=" + cvalue + ";" + ";path=/";
+    var expires = (new Date(Date.now()+ 604800*1000)).toUTCString(); // 7 Days
+    document.cookie = cname + "=" + cvalue + ";" + ` expires=${expires}; path=/`;
+
 }
 
 function getCookie(cname) {
