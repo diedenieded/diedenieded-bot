@@ -352,6 +352,10 @@ client.on('message', message => {
                 message.reply(`pong!, ${ping}ms`);
                 break;
             case 'prefix':
+                if (!isAdministrator) {
+                    message.reply('you do not have permission to use this command.');
+                    break;
+                }
                 if (args) {
                     if (args.length != 1) {
                         console.log('[PREFIX] Prefix must have a length of 1');
@@ -412,6 +416,10 @@ client.on('message', message => {
                 message.channel.send(tempEmbed);
                 break;
             case 'setguild':
+                if (!isAdministrator) {
+                    message.reply('you do not have permission to use this command.');
+                    break;
+                }
                 if (db.config.guildID == -1) {
                     currentGuild = message.guild;
                     db.config.guildID = message.guild.id;
@@ -423,6 +431,10 @@ client.on('message', message => {
                 }
                 break;
             case 'setannouncement':
+                if (!isAdministrator) {
+                    message.reply('you do not have permission to use this command');
+                    break;
+                }
                 if (args != null) {
                     let tempChannel;
                     tempChannel = currentGuild.channels.resolve(args);
@@ -436,10 +448,19 @@ client.on('message', message => {
                     }
                 }
                 break;
-            case 'dm': {
+            case 'dm':
+                if (!isAdministrator) {
+                    message.reply('you do not have permission to use this command');
+                    break;
+                }
                 directMessage(message.author.id, "Test");
-            }
-            case 'mention': {
+                break;
+
+            case 'mention':
+                if (!isAdministrator) {
+                    message.reply('you do not have permission to use this command');
+                    break;
+                }
                 if (args) {
                     if (args.length == 0) {
                         message.reply('you need to choose a channel and mention users or roles');
@@ -474,7 +495,7 @@ client.on('message', message => {
                     console.log(mentions);
                     channel.send(mentions);
                 }
-            }
+                break;
         }
     }
 });
