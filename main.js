@@ -314,6 +314,7 @@ client.on('message', message => {
     if (message.content.charAt(0) == db.config.prefix) {
         let command;
         let args;
+        let isAdministrator = false;
 
         //#region Command processing
         let spaceBeforeArgs = message.content.indexOf(' ');
@@ -331,6 +332,19 @@ client.on('message', message => {
         verbose(`[DBOT] -- Args: ${args}`);
         verbose(`[DBOT] -- Channel: ${message.channel.name}`);
         verbose(`[DBOT] -- Author: ${message.author.username}`);
+        //#endregion
+
+        //#region Check if user is administrator
+        verbose(`[DBOT] Checking if ${message.member.displayName} has administrator permissions`);
+        message.member.roles.cache.every(role => {
+            if (role.permissions.serialize().ADMINISTRATOR) {
+                isAdministrator = true;
+                verbose(`[DBOT] ${message.member.displayName} has administrator permissions`);
+                return false;
+            } else {
+                verbose(`[DBOT] ${message.member.displayName} does not have administrator permissions`);
+            }
+        });
         //#endregion
 
         switch (command) {
@@ -387,7 +401,7 @@ client.on('message', message => {
                     { name: `${db.config.prefix}hours [user...]`, value: 'Displays the total voice chat members. Arguments can either be empty to show all members\'s hours, or @user to show that user\'s hours' },
                     { name: `${db.config.prefix}ping`, value: `Pong! Shows average latency between ${client.user.username} and you` },
                 );
-                if (message.member.roles.highest.permissions.serialize().ADMINISTRATOR) {
+                if (isAdministrator) {
                     tempEmbed.addFields(
                         { name: `${db.config.prefix}prefix [symbol]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
                         { name: `${db.config.prefix}setguild`, value: 'Sets the current guild as the bot\'s active guild. Can only be used once when initially setting up the bot' },
