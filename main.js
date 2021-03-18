@@ -15,7 +15,7 @@ const defaultEmbedColor = '#27e9e9';
 /**
  * Necessary global variables
  * VERBOSE - Toggles verbose output
- * db - json containing all information required
+ * db - json containing all information of a server
  * currentGuild - current Guild selected, will be using new Discord.Guild if not configured in db
  * toIncrement - this array contains users whose time needs to be incremented, contains GuildMember type
  */
