@@ -385,12 +385,17 @@ client.on('message', message => {
                 tempEmbed.setColor(defaultEmbedColor);
                 tempEmbed.addFields(
                     { name: `${db.config.prefix}hours [user...]`, value: 'Displays the total voice chat members. Arguments can either be empty to show all members\'s hours, or @user to show that user\'s hours' },
-                    { name: `${db.config.prefix}ping`, value: 'Pong! Shows average latency between DBOT and you' },
-                    { name: `${db.config.prefix}prefix [symbol]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
-                    { name: `${db.config.prefix}setguild`, value: 'Sets the current guild as the bot\'s active guild. Can only be used once when initially setting up the bot' },
-                    { name: `${db.config.prefix}setannouncement [channel id]`, value: 'Sets the announcement channel for bot to send announcements' },
-                    { name: `${db.config.prefix}mention [channel id] [user, role or everyone]`, value: 'Mentions specified people' }
+                    { name: `${db.config.prefix}ping`, value: `Pong! Shows average latency between ${client.user.username} and you` },
                 );
+                if (message.member.roles.highest.permissions.serialize().ADMINISTRATOR) {
+                    tempEmbed.addFields(
+                        { name: `${db.config.prefix}prefix [symbol]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
+                        { name: `${db.config.prefix}setguild`, value: 'Sets the current guild as the bot\'s active guild. Can only be used once when initially setting up the bot' },
+                        { name: `${db.config.prefix}setannouncement [channel id]`, value: 'Sets the announcement channel for bot to send announcements' },
+                        { name: `${db.config.prefix}mention [channel id] [user, role or everyone]`, value: 'Mentions specified people' }
+                    );
+                }
+
                 verbose('[HELP] Sending embed');
                 message.channel.send(tempEmbed);
                 break;
