@@ -326,7 +326,7 @@ client.on('message', message => {
             command = message.content.substring(1, spaceBeforeArgs);
             args = message.content.substring(spaceBeforeArgs + 1);
         }
-        console.log(`[DBOT] ${message.content}`);
+
         verbose(`[DBOT] -- Prefix: ${message.content.charAt(0)}`);
         verbose(`[DBOT] -- Command: ${command}`);
         verbose(`[DBOT] -- Args: ${args}`);
@@ -336,15 +336,13 @@ client.on('message', message => {
 
         //#region Check if user is administrator
         verbose(`[DBOT] Checking if ${message.member.displayName} has administrator permissions`);
-        message.member.roles.cache.every(role => {
-            if (role.permissions.serialize().ADMINISTRATOR) {
-                isAdministrator = true;
-                verbose(`[DBOT] ${message.member.displayName} has administrator permissions`);
-                return false;
-            } else {
-                verbose(`[DBOT] ${message.member.displayName} does not have administrator permissions`);
-            }
-        });
+        message.member.hasPermission('ADMINISTRATOR');
+        isAdministrator = message.member.hasPermission('ADMINISTRATOR');
+        if (isAdministrator) {
+            verbose(`[DBOT] ${message.member.displayName} has administrator permissions`);
+        } else {
+            verbose(`[DBOT] ${message.member.displayName} does not have administrator permissions`);
+        }
         //#endregion
 
         switch (command) {
