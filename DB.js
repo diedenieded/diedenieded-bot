@@ -21,6 +21,14 @@ class Config {
     guildID; prefix; token; announcementID; ranks; authkey;
 }
 
+class User {
+    constructor(id, totalTime) {
+        this.id = id;
+        this.totalTime = totalTime;
+    }
+    id; totalTime;
+}
+
 class Users {
     #array;
 
@@ -87,31 +95,40 @@ class Week {
     }
 }
 
-class User {
-    constructor(id, totalTime) {
-        this.id = id;
-        this.totalTime = totalTime;
-    }
-    id; totalTime;
-}
-
 class External {
-    constructor(users, reactMsgIDs, week, config) {
+    constructor(users, reactMessages, week, config) {
         this.users = users.getArray();
-        this.reactMsgIDs = reactMsgIDs;
+        this.reactMessages = reactMessages;
         this.week = week;
         this.config = config;
     }
+    users; reactMessages; week; config;
+}
 
-    parseJSON(json) {
-        let temp = JSON.parse(json);
-
+class ReactMessage {
+    id; roles;
+    constructor(id, pairs) {
+        this.roles = [];
+        if (id && pairs) {
+            this.id = id;
+            pairs.forEach(pair => {
+                this.addPair(pair.emoji, pair.role_id);
+            });
+        } else {
+            this.id = '-1';
+        }
     }
-    users; reactMsgIDs; week; config;
+
+    addPair(emoji, roleID) {
+        this.roles.push({
+            emoji: emoji,
+            role_id: roleID
+        });
+    }
 }
 
 class DB {
-    #path; users; reactMsgIDs; week; config;
+    #path; users; reactMessages; week; config;
     constructor(path) {
         this.#path = path;
 
@@ -119,7 +136,7 @@ class DB {
         this.users = new Users();
         this.week = new Week();
         this.config = new Config();
-        this.reactMsgIDs = [];
+        this.reactMessages = [];
 
         // Creates new file if doesn't exist
         if (!fs.existsSync(path)) {
@@ -135,12 +152,16 @@ class DB {
         this.users = new Users(temp.users);
         this.week = new Week(temp.week);
         this.config = new Config(temp.config);
-
-        if (temp.reactMsgIDs) {
+        if (temp.reactMessages) {
             // Doing this instead of temp.reactMsgIDs = this.reactMsgIDs 
             // preserves data type to work better with intellisense
-            temp.reactMsgIDs.forEach(id => {
-                this.reactMsgIDs.push(id);
+            temp.reactMessages.forEach(reactMessage => {
+                let temp = new ReactMessage();
+                temp.id = reactMessage.id;
+                reactMessage.roles.forEach(role => {
+                    temp.addPair(role.emoji, role.role_id);
+                });
+                this.reactMessages.push(temp);
             });
         }
 
@@ -149,7 +170,7 @@ class DB {
     }
 
     write() {
-        let temp = new External(this.users, this.reactMsgIDs, this.week, this.config);
+        let temp = new External(this.users, this.reactMessages, this.week, this.config);
         try {
             fs.writeFileSync(this.#path, JSON.stringify(temp));
         } catch (error) {
@@ -163,4 +184,5 @@ module.exports.User = User;
 module.exports.Users = Users;
 module.exports.Config = Config;
 module.exports.Week = Week;
+module.exports.ReactMessage = ReactMessage;
 // External is not exported as it is designed for use within DB.js
