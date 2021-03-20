@@ -1,13 +1,22 @@
 const fs = require('fs');
 
 class Config {
-    constructor() {
-        this.guildID = '';
-        this.prefix = '';
-        this.token = '';
-        this.announcementID = '';
-        this.ranks = [];
-        this.authkey = [];
+    constructor(external) {
+        if (external) {
+            this.guildID = external.guildID;
+            this.prefix = external.prefix;
+            this.token = external.token;
+            this.announcementID = external.announcementID;
+            this.ranks = external.ranks;
+            this.authkey = external.authkey;
+        } else {
+            this.guildID = '-1';
+            this.prefix = '^';
+            this.token = null;
+            this.announcementID = '-1';
+            this.ranks = [];
+            this.authkey = [];
+        }
     }
     guildID; prefix; token; announcementID; ranks; authkey;
 }
@@ -15,8 +24,15 @@ class Config {
 class Users {
     #array;
 
-    constructor() {
+    constructor(external) {
         this.#array = [];
+        if (external) {
+            // For vscode to realize types
+            external.forEach(element => {
+                let tempUser = new User(element.id, element.totalTime);
+                this.addUser(tempUser);
+            });
+        }
     }
 
     findByID(id) {
@@ -50,14 +66,24 @@ class Users {
 
 class Week {
     monday; tuesday; wednesday; thursday; friday; saturday; sunday;
-    constructor() {
-        this.monday = '';
-        this.tuesday = '';
-        this.wednesday = '';
-        this.thursday = '';
-        this.friday = '';
-        this.saturday = '';
-        this.sunday = '';
+    constructor(external) {
+        if (external) {
+            this.monday = external.monday;
+            this.tuesday = external.tuesday;
+            this.wednesday = external.wednesday;
+            this.thursday = external.thursday;
+            this.friday = external.friday;
+            this.saturday = external.saturday;
+            this.sunday = external.sunday;
+        } else {
+            this.monday = 'PT0D';
+            this.tuesday = 'PT0D';
+            this.wednesday = 'PT0D';
+            this.thursday = 'PT0D';
+            this.friday = 'PT0D';
+            this.saturday = 'PT0D';
+            this.sunday = 'PT0D';
+        }
     }
 }
 
@@ -69,82 +95,63 @@ class User {
     id; totalTime;
 }
 
+class External {
+    constructor(users, reactMsgIDs, week, config) {
+        this.users = users.getArray();
+        this.reactMsgIDs = reactMsgIDs;
+        this.week = week;
+        this.config = config;
+    }
+
+    parseJSON(json) {
+        let temp = JSON.parse(json);
+
+    }
+    users; reactMsgIDs; week; config;
+}
+
 class DB {
-    #object; #path;
-    users;
-    config;
-    week;
+    #path; users; reactMsgIDs; week; config;
     constructor(path) {
         this.#path = path;
+
+        // Declare all DB properties here
+        this.users = new Users();
+        this.week = new Week();
+        this.config = new Config();
+        this.reactMsgIDs = [];
+
+        // Creates new file if doesn't exist
         if (!fs.existsSync(path)) {
-            fs.writeFileSync(path, JSON.stringify({
-                users: [],
-                week: {
-                    monday: 'PT0D',
-                    tuesday: 'PT0D',
-                    wednesday: 'PT0D',
-                    thursday: 'PT0D',
-                    friday: 'PT0D',
-                    saturday: 'PT0D',
-                    sunday: 'PT0D'
-                },
-                config: {
-                    guildID: '-1',
-                    announcementID: '-1',
-                    prefix: '^',
-                    token: null,
-                    ranks: [],
-                    authkey: []
-                }
-            }));
+            fs.writeFileSync(path, '');
+            // To write to newly created files
+            this.write();
         }
 
-        // Read from external json #object
-        this.#object = JSON.parse(fs.readFileSync(path));
-        this.users = new Users();
+        let temp;
+        // Read from external json object
+        temp = JSON.parse(fs.readFileSync(path));
+        // Copy data from external object
+        this.users = new Users(temp.users);
+        this.week = new Week(temp.week);
+        this.config = new Config(temp.config);
 
-        // Can't remember why I'm doing this
-        this.#object.users.forEach(element => {
-            let tempUser = new User(element.id, element.totalTime);
-            this.users.addUser(tempUser);
-        });
+        if (temp.reactMsgIDs) {
+            // Doing this instead of temp.reactMsgIDs = this.reactMsgIDs 
+            // preserves data type to work better with intellisense
+            temp.reactMsgIDs.forEach(id => {
+                this.reactMsgIDs.push(id);
+            });
+        }
 
-        this.week = new Week();
-        this.week.monday = this.#object.week.monday;
-        this.week.tuesday = this.#object.week.tuesday;
-        this.week.wednesday = this.#object.week.wednesday;
-        this.week.thursday = this.#object.week.thursday;
-        this.week.friday = this.#object.week.friday;
-        this.week.saturday = this.#object.week.saturday;
-        this.week.sunday = this.#object.week.sunday;
-
-        this.config = new Config();
-        this.config.guildID = this.#object.config.guildID;
-        this.config.prefix = this.#object.config.prefix;
-        this.config.token = this.#object.config.token;
-        this.config.announcementID = this.#object.config.announcementID;
-        this.config.ranks = this.#object.config.ranks;
-        this.config.authkey = this.#object.config.authkey;
+        // To update properties of existing JSON files
+        this.write();
     }
 
     write() {
-        this.#object.users = this.users.getArray();
-        
-        this.#object.config.guildID = this.config.guildID;
-        this.#object.config.prefix = this.config.prefix;
-        this.#object.config.announcementID = this.config.announcementID;
-        this.#object.config.ranks = this.config.ranks;
-        // AUTHKEY IS READ ONLY
-
-        this.#object.week.monday = this.week.monday;
-        this.#object.week.tuesday = this.week.tuesday;
-        this.#object.week.wednesday = this.week.wednesday;
-        this.#object.week.thursday = this.week.thursday;
-        this.#object.week.friday = this.week.friday;
-        this.#object.week.saturday = this.week.saturday;
-        this.#object.week.sunday = this.week.sunday;
+        let temp = new External(this.users, this.reactMsgIDs, this.week, this.config);
         try {
-            fs.writeFileSync(this.#path, JSON.stringify(this.#object));
+            fs.writeFileSync(this.#path, JSON.stringify(temp));
         } catch (error) {
             console.log(error);
         }
@@ -156,3 +163,4 @@ module.exports.User = User;
 module.exports.Users = Users;
 module.exports.Config = Config;
 module.exports.Week = Week;
+// External is not exported as it is designed for use within DB.js
