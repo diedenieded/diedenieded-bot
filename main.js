@@ -2,13 +2,14 @@
  * diedenieded-bot
  * diedenieded
  */
-const version = "v2021-03-10-0926";
+const version = "v2021-03-20-0954";
 const Discord = require('discord.js');
 const client = new Discord.Client({ autoReconnect: true });
 const dayjs = require('dayjs');
 dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
 const schedule = require('node-schedule');
+const nodeEmoji = require('node-emoji');
 var monthlyReset, weeklyReset;
 const defaultEmbedColor = '#27e9e9';
 
@@ -22,6 +23,14 @@ const defaultEmbedColor = '#27e9e9';
 const VERBOSE = true;
 const ENABLE_CONTROL_PANEL = true;
 var db = new DB('db.json');
+/**
+ * Helper functions and variables below
+ */
+
+function verbose(log) {
+    if (VERBOSE) console.log(dayjs().format('MM/DD/YY HH:mm:ss') + ' ' + log);
+}
+
 var currentGuild;
 const RequiredPermissions = new Discord.Permissions([
     'VIEW_CHANNEL',
@@ -31,14 +40,9 @@ const RequiredPermissions = new Discord.Permissions([
     'READ_MESSAGE_HISTORY'
 ]);
 var toIncrement = [];
+var botDisplayName;
 
-/**
- * Helper functions and variables below
- */
-function verbose(log) {
-    if (VERBOSE) console.log(dayjs().format('MM/DD/YY HH:mm:ss') + ' ' + log);
-}
-
+//#region Disable this region to disable client activities
 // Main code used to fetch members using provided IDs, create an embedded message and send to channel
 function HoursHelperSendEmbed(tempIDs, channel, afterFunction) {
     currentGuild.members.fetch({ user: tempIDs })
@@ -48,7 +52,7 @@ function HoursHelperSendEmbed(tempIDs, channel, afterFunction) {
             let userThatDoesNotExist;
             tempEmbed.setColor(defaultEmbedColor);
             tempEmbed.setAuthor(`${db.config.prefix}hours`);
-            tempEmbed.setFooter(client.user.username, client.user.avatarURL());
+            tempEmbed.setFooter(botDisplayName, client.user.avatarURL());
             tempEmbed.setTimestamp();
             for (let i = 0; i < tempIDs.length; i++) {
                 if (!db.users.exists(tempIDs[i])) {
@@ -137,7 +141,7 @@ function monthlyHoursReset() {
             .setColor(defaultEmbedColor)
             .setTitle('Monthly Voice Hours Reset')
             .setDescription(`Your voice hours has been reset. You can check your hours for ${dayjs().subtract(1, 'day').format('MMMM')} below`)
-            .setFooter(client.user.username, client.user.avatarURL())
+            .setFooter(botDisplayName, client.user.avatarURL())
             .setTimestamp();
         channel.send(tempEmbed);
         tempUsers = JSON.parse(JSON.stringify(db.users.getArray())); // Deep copy
@@ -197,56 +201,6 @@ function directMessage(userID, message) {
         });
 }
 
-// Creates and sends an embedded message using data from web control panel
-function webSendEmbed(data) {
-    let embed = new Discord.MessageEmbed();
-    if (data.author.length > 0) { // Author required, Author Icon not
-        if (data.author_avatar_url.length > 0) {
-            embed.setAuthor(data.author, data.author_avatar_url);
-        } else {
-            embed.setAuthor(data.author);
-        }
-    }
-    if (data.title.length > 0) embed.setTitle(data.title);
-    if (data.content_text.length > 0) embed.setDescription(data.content_text);
-    if (data.thumbnail_url.length > 0) embed.setThumbnail(data.thumbnail_url);
-    data.fields.forEach(field => {
-        if ("title" in field && "text" in field) {
-            if (field.title.length > 0 && field.text.length > 0) {
-                let bool;
-                if (field.inline == 'true') {
-                    bool = true;
-                } else if (field.inline == 'false') {
-                    bool = false;
-                }
-                console.log(field);
-                embed.addField(field.title, field.text, bool);
-            }
-        }
-    });
-    if (data.main_image_url.length > 0) {
-        embed.setImage(data.main_image_url);
-    }
-    if (data.footer_text.length > 0) {
-        if (data.footer_icon_url.length > 0) {
-            embed.setFooter(data.footer_text, data.footer_icon_url);
-        } else {
-            embed.setFooter(data.footer_text);
-        }
-    }
-    embed.setColor(data.color_hex);
-    embed.setTimestamp();
-    currentGuild.channels.resolve(data.channel_id).send(embed);
-}
-
-function returnAuth(authkey) {
-    // Returns authkey and user id pair if found, null if not found
-    for (let i = 0; i < db.config.authkey.length; i++) {
-        if (db.config.authkey[i].key == authkey) return db.config.authkey[i];
-    }
-    return null;
-}
-
 /****************************************
  *                                      *
  *                                      *
@@ -270,6 +224,7 @@ client.on('ready', () => {
     } else {
         client.guilds.fetch(db.config.guildID, true, true) // Cache guild, skip cache check
             .then((guild) => {
+                currentGuild = new Discord.Guild;
                 currentGuild = guild;
                 console.log(`[DBOT] Guild selected: ${currentGuild.name}`);
                 currentGuild.members.fetch(client.user.id).then(user => {
@@ -278,7 +233,15 @@ client.on('ready', () => {
                     monthlyReset = schedule.scheduleJob('0 0 1 * *', monthlyHoursReset);
                     weeklyReset = schedule.scheduleJob('0 0 * * 1', weeklyHoursReset);
                     scanVoiceChannels();
+                    botDisplayName = user.displayName;
                 });
+
+                // Fetch channels and messages for react roles
+                db.reactMessages.forEach(reactMessage => {
+                    currentGuild.channels.resolve(reactMessage.channel);
+                    
+                });
+                
             })
             .catch((err) => { console.log(err); });
     }
@@ -335,14 +298,9 @@ client.on('message', message => {
         //#endregion
 
         //#region Check if user is administrator
-        verbose(`[DBOT] Checking if ${message.member.displayName} has administrator permissions`);
         message.member.hasPermission('ADMINISTRATOR');
         isAdministrator = message.member.hasPermission('ADMINISTRATOR');
-        if (isAdministrator) {
-            verbose(`[DBOT] ${message.member.displayName} has administrator permissions`);
-        } else {
-            verbose(`[DBOT] ${message.member.displayName} does not have administrator permissions`);
-        }
+        verbose(`[DBOT] ${message.member.displayName} has administrator permissions?: ${isAdministrator}`);
         //#endregion
 
         switch (command) {
@@ -396,17 +354,16 @@ client.on('message', message => {
                 let tempEmbed = new Discord.MessageEmbed();
                 tempEmbed.setAuthor(`${db.config.prefix}help`);
                 tempEmbed.setTitle('Help');
-                tempEmbed.setFooter(client.user.username, client.user.avatarURL());
+                tempEmbed.setFooter(botDisplayName, client.user.avatarURL());
                 tempEmbed.setTimestamp();
                 tempEmbed.setColor(defaultEmbedColor);
                 tempEmbed.addFields(
                     { name: `${db.config.prefix}hours [user...]`, value: 'Displays the total voice chat members. Arguments can either be empty to show all members\'s hours, or @user to show that user\'s hours' },
-                    { name: `${db.config.prefix}ping`, value: `Pong! Shows average latency between ${client.user.username} and you` },
+                    { name: `${db.config.prefix}ping`, value: `Pong! Shows average latency between ${botDisplayName} and you` },
                 );
                 if (isAdministrator) {
                     tempEmbed.addFields(
                         { name: `${db.config.prefix}prefix [symbol]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
-                        { name: `${db.config.prefix}setguild`, value: 'Sets the current guild as the bot\'s active guild. Can only be used once when initially setting up the bot' },
                         { name: `${db.config.prefix}setannouncement [channel id]`, value: 'Sets the announcement channel for bot to send announcements' },
                         { name: `${db.config.prefix}mention [channel id] [user, role or everyone]`, value: 'Mentions specified people' }
                     );
@@ -414,21 +371,6 @@ client.on('message', message => {
 
                 verbose('[HELP] Sending embed');
                 message.channel.send(tempEmbed);
-                break;
-            case 'setguild':
-                if (!isAdministrator) {
-                    message.reply('you do not have permission to use this command.');
-                    break;
-                }
-                if (db.config.guildID == -1) {
-                    currentGuild = message.guild;
-                    db.config.guildID = message.guild.id;
-                    db.write();
-                    console.log(`[DBOT] New guild has been set! - ${message.guild.name}: ${message.guild.id}`);
-                    message.reply(`guild has been set to ${message.guild.name}!`);
-                } else {
-                    message.reply('guild has already been set. You cannot change it anymore!');
-                }
                 break;
             case 'setannouncement':
                 if (!isAdministrator) {
@@ -455,7 +397,6 @@ client.on('message', message => {
                 }
                 directMessage(message.author.id, "Test");
                 break;
-
             case 'mention':
                 if (!isAdministrator) {
                     message.reply('you do not have permission to use this command');
@@ -496,6 +437,17 @@ client.on('message', message => {
                     channel.send(mentions);
                 }
                 break;
+            case 'test':
+                if (!isAdministrator) {
+                    message.reply('you do not have permission to use this command');
+                    break;
+                }
+                let embed = new Discord.MessageEmbed();
+                embed.setDescription(':TEST: :female_sign:');
+                message.channel.send(embed);
+                break;
+            default:
+                message.reply(`command doesn't exist, use ${db.config.prefix}help to view available commaands`);
         }
     }
 });
@@ -514,41 +466,57 @@ client.on('voiceStateUpdate', (oldVoiceState, newVoiceState) => {
             && newVoiceState.channelID != currentGuild.afkChannelID) {
             // Connect procedure
             console.log(`[DBOT] ${newVoiceState.member.displayName} has connected`);
-            verbose('[DBOT] Carrying out connect procedure');
-            verbose(`[DBOT] Checking if user ${newVoiceState.member.displayName} with ID ${newVoiceState.member.id} exists in db`);
             if (db.users.exists(newVoiceState.member.id)) {
-                verbose(`[DBOT] User found, adding user to toIncrement`);
-                //toIncrement.push(db.users.findByID(newVoiceState.member.id));
+                verbose(`[DBOT] ${newVoiceState.member.displayName} exists in db, adding user to toIncrement`);
                 toIncrement.push(newVoiceState.member);
-                verbose(`[DBOT] Contents of toIncrement: `);
-                toIncrement.forEach(member => { verbose(`[toIncrement] ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
             } else {
-                verbose(`[DBOT] User does not exist, creating new user in DB`);
-                db.users.addUser(new DB.User(newVoiceState.member.id, 'P0D'));
+                verbose(`[DBOT] ${newVoiceState.member.displayName} does not exist in db, creating new user in DB and adding to toIncrement`);
+                db.users.addUser(new DB.User(newVoiceState.member.id, 'PT0D'));
                 db.write();
-                verbose(`[DBOT] Adding newly created user to toIncrement`);
-                //toIncrement.push(db.users.findByID(newVoiceState.member.id));
                 toIncrement.push(newVoiceState.member);
-                toIncrement.forEach(member => { verbose(`[toIncrement] ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
             }
+            verbose(`[DBOT] Contents of toIncrement: `);
+            toIncrement.forEach(member => { verbose(`[DBOT] - ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
         }
         if ((oldVoiceState.channelID != currentGuild.afkChannelID && newVoiceState.channelID == null) || (newVoiceState.channelID == currentGuild.afkChannelID && oldVoiceState.channelID != null)) {
             // Disconnect procedure
-            verbose('[DBOT] Carrying out disconnect procedure');
-            verbose(`[DBOT] Checking if user ${newVoiceState.member.displayName} with ID ${newVoiceState.member.id} exists in toIncrement`);
+            console.log(`[DBOT] ${newVoiceState.member.displayName} has disconnected`);
             let tempIndex = toIncrement.findIndex(elm => elm.id == newVoiceState.member.id);
             if (tempIndex != -1) {
-                verbose(`[DBOT] User with ID ${newVoiceState.member.id} exists at index ${tempIndex} in toIncrement, removing...`);
                 toIncrement.splice(tempIndex, 1);
-                verbose(`[DBOT] User with ID ${newVoiceState.member.id} has been removed.`);
-                toIncrement.forEach(member => { if (toIncrement.length > 0) verbose(`[toIncrement] ${member.id}: ${db.users.findByID(member.id).totalTime}`) });
+                verbose(`[DBOT] ${newVoiceState.member.displayName} exists at index ${tempIndex} in toIncrement, removed`);
             } else {
-                verbose(`[DBOT] User with ID ${newVoiceState.member.id} does not exist in toIncrement, ignored`);
+                verbose(`[DBOT] ${newVoiceState.member.displayName} does not exist in toIncrement, ignored`);
             }
+            verbose(`[DBOT] Contents of toIncrement: `);
+            toIncrement.forEach(member => { verbose(`[DBOT] - ${member.displayName}: ${db.users.findByID(member.id).totalTime}`) });
         }
     }
 });
 
+
+/**
+ * client.on('messageReactionAdd', (messageReaction)) and
+ * client.on('messageReactionAdd', (messageReaction))
+ * To keep track of role reacts
+ */
+client.on('messageReactionAdd', messageReaction => {
+    // Only after adding an array to track sent react role messages
+    // Need to fetch older messages during initialize
+});
+
+client.on('messageReactionRemove', messageReaction => {
+    // Only after adding an array to track sent react role messages
+});
+
+
+/**
+ * client.on('messageDelete', message)
+ * Currently used to delete sent reaction role messages
+ */
+client.on('messageDelete', message => {
+
+});
 
 /**
  * This function increments the time of users in toIncrement[]
@@ -664,6 +632,8 @@ client.login(db.config.token).catch(err => {
     process.exit(1);
 });
 
+//#endregion
+
 /****************************************
  *                                      *
  *                                      *
@@ -671,145 +641,327 @@ client.login(db.config.token).catch(err => {
  *                                      *
  *                                      *
  ****************************************/
+// Functions related to web panel
+// Creates and sends an embedded message using data from web control panel
+function webSendEmbed(data) {
+    let embed = new Discord.MessageEmbed();
+    if (data.author.length > 0) { // Author required, Author Icon not
+        if (data.author_avatar_url.length > 0) {
+            embed.setAuthor(data.author, data.author_avatar_url);
+        } else {
+            embed.setAuthor(data.author);
+        }
+    }
+    if (data.title.length > 0) embed.setTitle(data.title);
+    if (data.content_text.length > 0) embed.setDescription(data.content_text);
+    if (data.thumbnail_url.length > 0) embed.setThumbnail(data.thumbnail_url);
+    data.fields.forEach(field => {
+        if ("title" in field && "text" in field) {
+            if (field.title.length > 0 && field.text.length > 0) {
+                let bool;
+                if (field.inline == 'true') {
+                    bool = true;
+                } else if (field.inline == 'false') {
+                    bool = false;
+                }
+                console.log(field);
+                embed.addField(field.title, field.text, bool);
+            }
+        }
+    });
+    if (data.main_image_url.length > 0) {
+        embed.setImage(data.main_image_url);
+    }
+    if (data.footer_text.length > 0) {
+        if (data.footer_icon_url.length > 0) {
+            embed.setFooter(data.footer_text, data.footer_icon_url);
+        } else {
+            embed.setFooter(data.footer_text);
+        }
+    }
+    embed.setColor(data.color_hex);
+    embed.setTimestamp();
+    currentGuild.channels.resolve(data.channel_id).send(embed);
+}
+
+function returnAuth(authkey) {
+    // Returns authkey and user id pair if found, null if not found
+    for (let i = 0; i < db.config.authkey.length; i++) {
+        if (db.config.authkey[i].key == authkey) return db.config.authkey[i];
+    }
+    return null;
+}
+
+function createReactRoleMessage(data) {
+    let roles = [];
+    verbose('[DBOT] Parsing roles');
+
+    // Parse roles
+    for (let i = 0; i < data.react_roles.length; i++) {
+        const element = data.react_roles[i];
+        verbose(`[DBOT] - ${element.emoji}, ${element.description}, ${element.role_id}`);
+        // Verify if all properties exist in element
+        if ("emoji" in element && "description" in element && "role_id" in element) {
+            if (element.emoji.length > 0 && element.description.length > 0 && element.role_id.length > 0) {
+                // All properties exist, start trying to parse emotes
+                // First check whether emoji is custom or not
+                let toResolve = element.emoji.slice(1, element.emoji.length - 1);
+                let customEmoji = currentGuild.emojis.cache.find(emoji => emoji.name == toResolve);
+                if (customEmoji) {
+                    // If emoji can be resolved to a custom emoji, create a new role and push to roles
+                    roles.push({
+                        emoji: customEmoji.toString(),
+                        description: element.description,
+                        role_id: element.role_id
+                    });
+                } else {
+                    // If cannot be resolved as custom emoji, try to resolve as unicode emoji
+                    let unicodeEmoji = nodeEmoji.get(element.emoji);
+                    if (unicodeEmoji != element.emoji) {
+                        roles.push({
+                            emoji: unicodeEmoji,
+                            description: element.description,
+                            role_id: element.role_id
+                        });
+                    } else {
+                        console.log('[DBOT] Emoji cannot be resolved, cancelling create react role message');
+                        return false;
+                    }
+                }
+            } else {
+                console.log('[DBOT] Some properties are empty, cancelling create react role message');
+                return false;
+            }
+        } else {
+            console.log('[DBOT] Role react does not contain all properties, cancelling create react role message');
+            verbose(`[DBOT] - emoji: ${"emoji" in element}, description: ${"description" in element}, role_id: ${"role_id" in element}`);
+            return false;
+        }
+    }
+
+    // Start embedded message creation
+    let embed = new Discord.MessageEmbed();
+    embed.setFooter(botDisplayName, client.user.displayAvatarURL({
+        dyanamic: true,
+        size: 64
+    }));
+    embed.setTimestamp();
+    embed.setColor(defaultEmbedColor);
+    if (data.title.length > 0) {
+        embed.setTitle(data.title);
+    }
+    let desc = ''; // Variable for description of embedded message
+    if (data.content_text.length > 0) {
+        desc += data.content_text + '\n\n';
+    }
+
+    roles.forEach(role => {
+        desc += ` ${role.emoji} - ** ${role.description} ** \n`;
+    });
+    embed.setDescription(desc);
+    let messageID;
+    currentGuild.channels.resolve(data.channel_id).send(embed)
+        .then(message => {
+            // Get message and react roles to it
+            roles.forEach(role => {
+                message.react(role.emoji).catch(() => {
+                    console.log(`[DBOT] Failed to react: ${role.emoji}`);
+                });
+            });
+            messageID = message.id;
+        }).finally(() => {
+            //Add message id to db for later tracking
+            let tempMessage = new DB.ReactMessage();
+            tempMessage.id = messageID;
+            tempMessage.channel = data.channel_id;
+            roles.forEach(role => {
+                tempMessage.addPair(role.emoji, role.role_id);
+            });
+            db.reactMessages.push(tempMessage);
+            db.write();
+        });
+}
 
 if (ENABLE_CONTROL_PANEL) {
-    client.on('ready', () => {
-        const PORT = 3000;
-        const express = require('express');
-        const app = express();
-        const http = require('http').Server(app);
-        const io = require('socket.io')(http, {
-            cors: {
-                origin: "http://52.77.118.111:3000",
-                methods: ["GET", "POST"]
-            }
-        });
-
-        app.use(express.static('control_panel'));
-
-        io.on('connection', (socket) => {
-            // Here
-            let currentAuthPair = returnAuth(socket.handshake.auth.token);
-            if (currentAuthPair == null) {
-                socket.disconnect(true);
-                verbose('[DBOTCTRL] Invalid credentials, connection has been terminated');
-                return;
-            }
-
-            verbose('[DBOTCTRL] Control panel has connected');
-            socket.on('get', type => {
-                if (type == 'connection-info') {
-                    if (currentGuild) {
-                        currentGuild.members.fetch(currentAuthPair.user_id).then(member => {
-                            let tempJSON = {
-                                server: currentGuild.name,
-                                server_avatar: currentGuild.iconURL({
-                                    dyanamic: true,
-                                    size: 64
-                                }),
-                                bot: client.user.username,
-                                bot_avatar: client.user.displayAvatarURL({
-                                    dyanamic: true,
-                                    size: 64
-                                }),
-                                user: member.displayName,
-                                user_avatar: member.user.displayAvatarURL({
-                                    dyanamic: true,
-                                    size: 64
-                                }),
-                                server_version: version
-                            }
-                            socket.emit('reply', 'connection-info', JSON.stringify(tempJSON));
-                        });
-                    }
-                }
-                if (type == 'guild-text-channels') {
-                    if (currentGuild) {
-                        let arr = [];
-                        currentGuild.channels.cache.each(channel => {
-                            if (channel.type == 'text') {
-                                let temp = {
-                                    name: channel.name,
-                                    id: channel.id
-                                };
-                                arr.push(temp);
-                            }
-                        });
-                        let jayson = JSON.stringify(arr);
-                        socket.emit('reply', 'guild-text-channels', jayson);
-                    }
-                }
-
-                if (type == 'voice-hours') {
-                    sendCurrentVoiceMembers();
-                }
-
-                if (type == 'weekly-voice-hours') {
-                    if (db.week) {
-                        console.log('[DBOT] Fetching weekly voice hours and sending to control panel');
-                        let tempHours = [
-                            parseFloat(dayjs.duration(db.week.sunday).asHours().toFixed(2)),
-                            parseFloat(dayjs.duration(db.week.monday).asHours().toFixed(2)),
-                            parseFloat(dayjs.duration(db.week.tuesday).asHours().toFixed(2)),
-                            parseFloat(dayjs.duration(db.week.wednesday).asHours().toFixed(2)),
-                            parseFloat(dayjs.duration(db.week.thursday).asHours().toFixed(2)),
-                            parseFloat(dayjs.duration(db.week.friday).asHours().toFixed(2)),
-                            parseFloat(dayjs.duration(db.week.saturday).asHours().toFixed(2))
-                        ];
-                        socket.emit('reply', 'weekly-voice-hours', JSON.stringify(tempHours));
-                    }
-                }
-            });
-
-            socket.on('send', (type, data) => {
-                if (type == 'embed') {
-                    let temp = JSON.parse(data);
-                    webSendEmbed(temp);
-                }
-            });
-
-            // Send info to control panel: uptime, currentGuild.name, currentGuild avatarURL, client.user.username, 
-            // client.user.avatarURL({format: 'gif', dynamic: true, size: 32})
-            function sendCurrentVoiceMembers() {
-                if (currentGuild && db.users) {
-                    console.log('[DBOT] Fetching voice hours and sending to control panel');
-                    var tempIDs = [];
-                    var tempUsers = [];
-
-                    db.users.getArray().forEach(user => {
-                        tempIDs.push(user.id);
-                    });
-                    currentGuild.members.fetch({ user: tempIDs })
-                        .then(members => {
-                            members.each(member => {
-                                let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
-                                let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
-                                let timeString = '';
-                                if (totalHours > 0) {
-                                    timeString = timeString.concat(`${totalHours} hours `);
-                                }
-                                timeString = timeString.concat(`${tempDuration.format('mm[ minutes and ]ss[ seconds]')}`);
-                                let user = {
-                                    displayName: member.displayName,
-                                    avatarURL: `https://cdn.discordapp.com/avatars/${member.id}/${member.user.avatar}.png?size=256`,
-                                    timeraw: `${tempDuration.toJSON()}`,
-                                    time: timeString
-                                }
-                                tempUsers.push(user);
-                            });
-                            tempUsers = tempUsers.sort((a, b) => {
-                                let aSort = dayjs.duration(a.timeraw).asSeconds();
-                                let bSort = dayjs.duration(b.timeraw).asSeconds();
-                                return bSort - aSort;
-                            });
-                            socket.emit('reply', 'voice-hours', JSON.stringify(tempUsers));
-                        }).catch(console.error);
-                }
-            }
-        });
-
-        http.listen(PORT, () => {
-            console.log(`[DBOTCTRL] Socket.IO listening on port ${PORT}`);
-        });
+    //client.on('ready', () => {
+    const PORT = 3000;
+    const express = require('express');
+    const app = express();
+    const http = require('http').Server(app);
+    const io = require('socket.io')(http, {
+        cors: {
+            origin: "http://52.77.118.111:3000",
+            methods: ["GET", "POST"]
+        }
     });
+
+    app.use(express.static('control_panel'));
+
+    io.on('connection', (socket) => {
+        // Here
+        let currentAuthPair = returnAuth(socket.handshake.auth.token);
+        if (currentAuthPair == null) {
+            socket.disconnect(true);
+            verbose('[DBOTCTRL] Invalid credentials, connection has been terminated');
+            return;
+        }
+
+        verbose('[DBOTCTRL] Control panel has connected');
+        socket.on('get', type => {
+            if (type == 'connection-info') {
+                if (currentGuild) {
+                    currentGuild.members.fetch(currentAuthPair.user_id).then(member => {
+                        let tempJSON = {
+                            server: currentGuild.name,
+                            server_avatar: currentGuild.iconURL({
+                                dyanamic: true,
+                                size: 64
+                            }),
+                            bot: botDisplayName,
+                            bot_avatar: client.user.displayAvatarURL({
+                                dyanamic: true,
+                                size: 64
+                            }),
+                            user: member.displayName,
+                            user_avatar: member.user.displayAvatarURL({
+                                dyanamic: true,
+                                size: 64
+                            }),
+                            server_version: version
+                        }
+                        socket.emit('reply', 'connection-info', JSON.stringify(tempJSON));
+                    });
+                }
+            }
+            if (type == 'guild-text-channels') {
+                if (currentGuild) {
+                    let arr = [];
+                    currentGuild.channels.cache.each(channel => {
+                        if (channel.type == 'text') {
+                            let temp = {
+                                name: channel.name,
+                                id: channel.id
+                            };
+                            arr.push(temp);
+                        }
+                    });
+                    let jayson = JSON.stringify(arr);
+                    socket.emit('reply', 'guild-text-channels', jayson);
+                }
+            }
+
+            if (type == 'voice-hours') {
+                sendCurrentVoiceMembers();
+            }
+
+            if (type == 'weekly-voice-hours') {
+                if (db.week) {
+                    console.log('[DBOT] Fetching weekly voice hours and sending to control panel');
+                    let tempHours = [
+                        parseFloat(dayjs.duration(db.week.sunday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.monday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.tuesday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.wednesday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.thursday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.friday).asHours().toFixed(2)),
+                        parseFloat(dayjs.duration(db.week.saturday).asHours().toFixed(2))
+                    ];
+                    socket.emit('reply', 'weekly-voice-hours', JSON.stringify(tempHours));
+                }
+            }
+
+            if (type == 'guild-roles-filtered') {
+                if (currentGuild) {
+                    console.log('[DBOT] Fetching filtered roles and sending to control panel');
+                    let tempRoles = [];
+                    currentGuild.roles.fetch().then(roles => {
+                        roles.cache.each(role => {
+                            // Filter rules
+                            // Exclude bot roles, role.managed
+                            // Exclude administrator roles, role.permissions.serialize().ADMINISTRATOR == true
+                            // Exclude strings with invisible character 7356 used as spacers, role.name.charCodeAt(0) != 7356
+                            if (!role.managed &&
+                                !role.permissions.serialize().ADMINISTRATOR &&
+                                role.name.charCodeAt(0) != 7356 &&
+                                role.name != '@everyone') {
+                                let tempRole = {
+                                    name: role.name,
+                                    id: role.id
+                                }
+                                tempRoles.push(tempRole);
+                            }
+                        });
+
+                        // Code from w3schools
+                        // https://www.w3schools.com/js/js_array_sort.asp
+                        tempRoles.sort((a, b) => {
+                            var x = a.name.toLowerCase();
+                            var y = b.name.toLowerCase();
+                            if (x < y) { return -1; }
+                            if (x > y) { return 1; }
+                            return 0;
+                        }
+                        );
+                        socket.emit('reply', 'guild-roles-filtered', JSON.stringify(tempRoles));
+                    });
+                }
+            }
+        });
+
+        socket.on('send', (type, data) => {
+            if (type == 'embed') {
+                let temp = JSON.parse(data);
+                webSendEmbed(temp);
+            }
+
+            if (type == 'react-role-message') {
+                let temp = JSON.parse(data);
+                createReactRoleMessage(temp);
+            }
+        });
+
+        // Send info to control panel: uptime, currentGuild.name, currentGuild avatarURL, botDisplayName, 
+        // client.user.avatarURL({format: 'gif', dynamic: true, size: 32})
+        function sendCurrentVoiceMembers() {
+            if (currentGuild && db.users) {
+                console.log('[DBOT] Fetching voice hours and sending to control panel');
+                var tempIDs = [];
+                var tempUsers = [];
+
+                db.users.getArray().forEach(user => {
+                    tempIDs.push(user.id);
+                });
+                currentGuild.members.fetch({ user: tempIDs })
+                    .then(members => {
+                        members.each(member => {
+                            let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
+                            let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
+                            let timeString = '';
+                            if (totalHours > 0) {
+                                timeString = timeString.concat(`${totalHours} hours `);
+                            }
+                            timeString = timeString.concat(`${tempDuration.format('mm[ minutes and ]ss[ seconds]')}`);
+                            let user = {
+                                displayName: member.displayName,
+                                avatarURL: `https://cdn.discordapp.com/avatars/${member.id}/${member.user.avatar}.png?size=256`,
+                                timeraw: `${tempDuration.toJSON()}`,
+                                time: timeString
+                            }
+                            tempUsers.push(user);
+                        });
+                        tempUsers = tempUsers.sort((a, b) => {
+                            let aSort = dayjs.duration(a.timeraw).asSeconds();
+                            let bSort = dayjs.duration(b.timeraw).asSeconds();
+                            return bSort - aSort;
+                        });
+                        socket.emit('reply', 'voice-hours', JSON.stringify(tempUsers));
+                    }).catch(console.error);
+            }
+        }
+    });
+
+    http.listen(PORT, () => {
+        console.log(`[DBOTCTRL] Socket.IO listening on port ${PORT}`);
+    });
+    //});
 }
