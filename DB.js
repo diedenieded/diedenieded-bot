@@ -106,11 +106,12 @@ class External {
 }
 
 class ReactMessage {
-    id; roles;
-    constructor(id, pairs) {
+    id; roles; channel;
+    constructor(id, pairs, channel) {
         this.roles = [];
-        if (id && pairs) {
+        if (id && pairs && channel) {
             this.id = id;
+            this.channel = channel;
             pairs.forEach(pair => {
                 this.addPair(pair.emoji, pair.role_id);
             });
@@ -158,6 +159,7 @@ class DB {
             temp.reactMessages.forEach(reactMessage => {
                 let temp = new ReactMessage();
                 temp.id = reactMessage.id;
+                temp.channel = reactMessage.channel;
                 reactMessage.roles.forEach(role => {
                     temp.addPair(role.emoji, role.role_id);
                 });
