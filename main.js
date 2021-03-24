@@ -2,9 +2,9 @@
  * diedenieded-bot
  * diedenieded
  */
-const version = "v2021-03-20-0954";
+const version = "v2021-03-24-0002";
 const Discord = require('discord.js');
-const client = new Discord.Client({ autoReconnect: true });
+const client = new Discord.Client({ autoReconnect: true, partials: ["USER", "CHANNEL", "GUILD_MEMBER", "MESSAGE", "REACTION"] });
 const dayjs = require('dayjs');
 dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
@@ -22,6 +22,7 @@ const defaultEmbedColor = '#27e9e9';
  */
 const VERBOSE = true;
 const ENABLE_CONTROL_PANEL = true;
+const AUTO_DELETE_REACT_MESSAGES = true;
 var db = new DB('db.json');
 /**
  * Helper functions and variables below
@@ -41,6 +42,9 @@ const RequiredPermissions = new Discord.Permissions([
 ]);
 var toIncrement = [];
 var botDisplayName;
+// React messages are fetched on startup, when it fails said messages
+// are assumed to be deleted and added to deletedReactMessages
+var deletedReactMessages = [];
 
 //#region Disable this region to disable client activities
 // Main code used to fetch members using provided IDs, create an embedded message and send to channel
@@ -172,17 +176,25 @@ function weeklyHoursReset() {
     db.write();
 }
 
-function setRole(userID, roleID) {
+function setRole(userID, roleID, callback) {
     currentGuild.members.fetch(userID).then(user => {
         verbose('[DBOT] Setting role for ' + user.displayName);
         user.roles.add(roleID);
+    }).finally(() => {
+        if (callback) {
+            callback();
+        }
     });
 }
 
-function removeRole(userID, roleID) {
+function removeRole(userID, roleID, callback) {
     currentGuild.members.fetch(userID).then(user => {
         verbose('[DBOT] Removing role for ' + user.displayName);
         user.roles.remove(roleID);
+    }).finally(() => {
+        if (callback) {
+            callback();
+        }
     });
 }
 
@@ -200,6 +212,33 @@ function directMessage(userID, message) {
 
         });
 }
+
+function fetchReactMessages() {
+    db.reactMessages.forEach(reactMessage => {
+        currentGuild.channels.resolve(reactMessage.channel).fetch(true).then(channel => {
+            // Fetching and caching so it can be resolved later
+            let msgCount = 0;
+            channel.messages.fetch(reactMessage.id, true, true).then(message => {
+                msgCount++;
+            }).catch(err => {
+                console.log(`[DBOT] Failed to fetch message ${reactMessage.id}, delete message from db: ${AUTO_DELETE_REACT_MESSAGES}`);
+                deletedReactMessages.push(reactMessage.id);
+                verbose(err);
+            }).finally(() => {
+                verbose(`[DBOT] Fetched ${msgCount} messages for react roles`);
+                if (AUTO_DELETE_REACT_MESSAGES) {
+                    deletedReactMessages.forEach(message => {
+                        let index = db.reactMessages.findIndex(msg => msg.id == message);
+                        db.reactMessages.splice(index, 1);
+                        db.write();
+                    });
+                }
+            });
+        });
+    });
+}
+
+
 
 /****************************************
  *                                      *
@@ -235,13 +274,8 @@ client.on('ready', () => {
                     scanVoiceChannels();
                     botDisplayName = user.displayName;
                 });
-
                 // Fetch channels and messages for react roles
-                db.reactMessages.forEach(reactMessage => {
-                    currentGuild.channels.resolve(reactMessage.channel);
-                    
-                });
-                
+                fetchReactMessages();
             })
             .catch((err) => { console.log(err); });
     }
@@ -501,12 +535,58 @@ client.on('voiceStateUpdate', (oldVoiceState, newVoiceState) => {
  * To keep track of role reacts
  */
 client.on('messageReactionAdd', messageReaction => {
-    // Only after adding an array to track sent react role messages
-    // Need to fetch older messages during initialize
+    let reactMessage = db.reactMessages.find(message => message.id == messageReaction.message.id);
+    if (reactMessage) {
+        messageReaction.users.fetch({ limit: 100 }).then(users => {
+            // Compare reacted users from messages to reacted users from DB
+            // User that doesn't exist in DB needs to be given role and added to DB
+            users.each(user => {
+                if (!user.bot) {
+                    let role = reactMessage.roles.find(f => f.emoji == messageReaction.emoji.toString());
+                    if (role) {
+                        if (!role.users.includes(user.id)) {
+                            // Find role id in DB according to emoji string in messageReaction
+                            setRole(user.id, role.role_id, () => {
+                                role.users.push(user.id);
+                                db.write();
+                            });
+
+                        }
+                    }
+                }
+            });
+        });
+    }
 });
 
 client.on('messageReactionRemove', messageReaction => {
-    // Only after adding an array to track sent react role messages
+    let reactMessage = db.reactMessages.find(message => message.id == messageReaction.message.id);
+    if (reactMessage) {
+        let tempUsers = [];
+        messageReaction.users.fetch({ limit: 100 }).then(users => {
+            users.each(user => {
+                // Extract user ids from fetched non-bot users
+                if (!user.bot) {
+                    tempUsers.push(user.id);
+                }
+            });
+        });
+        // Other way round
+        // Compare reacted users from DB to reacted user ids extracted from messages
+        // User that doesn't exist in messages have their role removed and removed from DB
+        let role = reactMessage.roles.find(f => f.emoji == messageReaction.emoji.toString());
+        role.users.forEach(rUser => {
+            // Bot check not needed here because only users are added to reactMessage.users, check main.js:529
+            if (!tempUsers.includes(rUser)) {
+                // Find role id in DB according to emoji string in messageReaction
+                removeRole(rUser, role.role_id, () => {
+                    let index = role.users.findIndex(elm => elm == rUser);
+                    role.users.splice(index, 1);
+                    db.write();
+                });
+            }
+        });
+    }
 });
 
 
@@ -515,7 +595,10 @@ client.on('messageReactionRemove', messageReaction => {
  * Currently used to delete sent reaction role messages
  */
 client.on('messageDelete', message => {
-
+    let index = db.reactMessages.findIndex(msg => msg.id == message.id);
+    if (index != -1) {
+        fetchReactMessages();
+    }
 });
 
 /**
@@ -775,7 +858,8 @@ function createReactRoleMessage(data) {
             tempMessage.id = messageID;
             tempMessage.channel = data.channel_id;
             roles.forEach(role => {
-                tempMessage.addPair(role.emoji, role.role_id);
+                let tempRole = new DB.ReactRole(role.emoji, role.role_id);
+                tempMessage.roles.push(tempRole);
             });
             db.reactMessages.push(tempMessage);
             db.write();
@@ -783,7 +867,7 @@ function createReactRoleMessage(data) {
 }
 
 if (ENABLE_CONTROL_PANEL) {
-    //client.on('ready', () => {
+    client.on('ready', () => {
     const PORT = 3000;
     const express = require('express');
     const app = express();
@@ -798,7 +882,6 @@ if (ENABLE_CONTROL_PANEL) {
     app.use(express.static('control_panel'));
 
     io.on('connection', (socket) => {
-        // Here
         let currentAuthPair = returnAuth(socket.handshake.auth.token);
         if (currentAuthPair == null) {
             socket.disconnect(true);
@@ -963,5 +1046,5 @@ if (ENABLE_CONTROL_PANEL) {
     http.listen(PORT, () => {
         console.log(`[DBOTCTRL] Socket.IO listening on port ${PORT}`);
     });
-    //});
+    });
 }

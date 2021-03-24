@@ -87,23 +87,7 @@
                     <th scope="col">Hours</th>
                   </tr>
                 </thead>
-                <tbody id="voice-hours">
-                  <tr>
-                    <th scope="row">1</th>
-                    <td>Mark</td>
-                    <td>Otto</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">2</th>
-                    <td>Jacob</td>
-                    <td>Thornton</td>
-                  </tr>
-                  <tr>
-                    <th scope="row">3</th>
-                    <td>Larry the Bird</td>
-                    <td>@twitter</td>
-                  </tr>
-                </tbody>
+                <tbody id="voice-hours"></tbody>
               </table>
             </div>
             <div class="col">
@@ -200,7 +184,8 @@
                   </td>
                   <td colspan>
                     <label for="footer-icon-url" class="form-label">Select channel to send</label>
-                    <select class="form-select" id="select-channel" aria-label="Default select example"></select>
+                    <select class="form-select channel-picker" id="select-channel"
+                      aria-label="Default select example"></select>
                   </td>
                 </tr>
               </table>
@@ -215,7 +200,47 @@
         </div>
       </div>
       <div class="tab-pane fade" id="nav-react" role="tabpanel" aria-labelledby="nav-react-tab">
-
+        <div class="row">
+          <h2>Add React Role Message</h2>
+          <form>
+            <table class="table table-borderless">
+              <tbody id="react-main-table">
+                <tr>
+                  <td>
+                    <label for="react-title" class="form-label">Title</label>
+                    <input type="text" class="form-control" id="react-title">
+                  </td>
+                  <td>
+                    <label for="react-text" class="form-label">Content Text</label>
+                    <textarea class="form-control" name="content-text" id="react-text" rows="1"
+                      maxlength="2000"></textarea>
+                  </td>
+                </tr>
+                <tr id="react-role-1">
+                  <td colspan="2">
+                    <label for="field-title-1" class="form-label">React Roles</label>
+                    <div class="input-group mb-3">
+                      <input style="max-width: 150px;" type="text" class="form-control" id="react-emoji-1"
+                        placeholder=":Emoji:">
+                      <input type="text" class="form-control" id="react-role-description-1"
+                        placeholder="Role Description (Can be left empty to use role name)">
+                      <select style="max-width: 200px;" id="react-role-select-1" class="react-role-select form-select">
+                      </select>
+                      <button id="react-add-role" class="btn btn-primary" onclick="addReactRoleField()"
+                        type="button">Add role</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="input-group mb-3">
+              <select class="form-select channel-picker" id="react-select-channel" style="max-width: 200px;"
+                aria-label="Default select example"></select>
+              <button type="button" id="react-submit" class="btn btn-primary">Add React Role Message</button>
+              <button type="reset" class="btn btn-warning">Clear all</button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   </div>

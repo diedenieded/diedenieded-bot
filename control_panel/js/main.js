@@ -1,4 +1,4 @@
-$('#web-version').text('v2021-03-17-0426');
+$('#web-version').text('v2021-03-19-0331');
 // Variables for page parts
 // Login form variables
 var input_authkey = $('#authkey');
@@ -15,6 +15,7 @@ var connection_status = 'unknown'; // 'connected', 'disconnected', 'unknown'
 var disconnect_reason;
 var currentUser, currentUserAvatar; // Currently logged in user's name and avatar url
 var currentBot, currentBotAvatar;
+var guildRolesFiltered = [];
 
 // Page events
 button_login.on('click', (event) => {
@@ -34,6 +35,10 @@ $('#add-field').on('click', (event) => {
 $('#send-embed').on('click', (event) => {
     event.preventDefault();
     sendEmbed();
+});
+
+$('#react-submit').on('click', () => {
+    addReactRoleMessage();
 });
 
 // Socket listeners
@@ -108,7 +113,7 @@ function afterLoginHandler() {
     }
 }
 
-// Define listeners to add here
+// Define listeners to add here and socket events
 function initListeners() {
     socket_listen_connect = socket.on('connect', () => {
         handleSuccessfulReconnect();
@@ -142,7 +147,7 @@ function initListeners() {
 
         if (type == 'guild-text-channels') {
             let temp = JSON.parse(data);
-            let selector = $('#select-channel');
+            let selector = $('.channel-picker');
             selector.html('');
             temp.forEach(channel => {
                 selector.append(`
@@ -170,6 +175,11 @@ function initListeners() {
                 }
             }
         }
+
+        if (type == 'guild-roles-filtered') {
+            guildRolesFiltered = JSON.parse(data);
+            setReactRolePicker();
+        }
     });
 }
 
@@ -183,6 +193,7 @@ function handleSuccessfulConnect() {
     socket.emit('get', 'connection-info');
     socket.emit('get', 'guild-text-channels');
     socket.emit('get', 'voice-hours');
+    socket.emit('get', 'guild-roles-filtered');
 }
 
 function handleSuccessfulReconnect() {
@@ -208,6 +219,16 @@ function sendNotification(color, message) {
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     `);
+}
+
+function useUserInfo() {
+    $('#author').val(currentUser);
+    $('#author-avatar-url').val(currentUserAvatar);
+}
+
+function useBotInfo() {
+    $('#footer-text').val(currentBot);
+    $('#footer-icon-url').val(currentBotAvatar);
 }
 
 var current_field_counter = 1;
@@ -245,6 +266,46 @@ function removeFieldOnForm(field_num) {
     $(`#field-${field_num}b`).remove();
 }
 
+var current_roles_counter = 1;
+function addReactRoleField() {
+    let toAppend = $('#react-main-table');
+    current_roles_counter++;
+    let tempField = `
+    <tr id="react-role-${current_roles_counter}">
+        <td colspan="2">
+            <label for="field-title-${current_roles_counter}" class="form-label">React Role</label>
+            <div class="input-group mb-3">
+                <input style="max-width: 150px;" type="text" class="form-control" id="react-emoji-${current_roles_counter}"
+                placeholder="Emoji">
+                <input type="text" class="form-control" id="react-role-description-${current_roles_counter}"
+                placeholder="Role Description (Can be left empty to use role name)">
+                <select style="max-width: 200px;" id="react-role-select-${current_roles_counter}" class="react-role-select form-select">
+                <option value="" disabled selected>Select role</option>
+                <option value="-1">Test</option>
+                </select>
+                <button id="react-add-role" class="btn btn-danger" onclick="removeReactRoleField(${current_roles_counter})" type="button">Remove role</button>
+            </div>
+        </td>
+    </tr>`;
+    toAppend.append(tempField);
+    setReactRolePicker();
+}
+
+function removeReactRoleField(field_num) {
+    console.log(field_num);
+    $(`#react-role-${field_num}`).remove();
+}
+
+function setReactRolePicker() {
+    let selector = $('.react-role-select')
+    selector.html('');
+    guildRolesFiltered.forEach(role => {
+        selector.append(`
+            <option value="${role.id}">${role.name}</option>
+        `);
+    });
+}
+
 function sendEmbed() {
     let embedObject = {
         author: $('#author').val(),
@@ -274,14 +335,29 @@ function sendEmbed() {
     socket.emit('send', 'embed', JSON.stringify(embedObject));
 }
 
-function useUserInfo() {
-    $('#author').val(currentUser);
-    $('#author-avatar-url').val(currentUserAvatar);
-}
-
-function useBotInfo() {
-    $('#footer-text').val(currentBot);
-    $('#footer-icon-url').val(currentBotAvatar);
+function addReactRoleMessage() {
+    // Add channel id too
+    let reactMessage = {
+        title: $('#react-title').val(),
+        content_text: $('#react-text').val(),
+        channel_id: $('#react-select-channel').val(),
+        react_roles: []
+    }
+    for (let i = 1; i <= current_roles_counter; i++) {
+        let reactRole = {
+            emoji: $(`#react-emoji-${i}`).val(),
+            description: '',
+            role_id: $(`#react-role-select-${i}`).val()
+        }
+        let tempDesc = $(`#react-role-description-${i}`).val();
+        if (!tempDesc) {
+            if (tempDesc.length == 0) reactRole.description = $(`#react-role-select-${i} option:selected`).text();
+        } else {
+            reactRole.description = $(`#react-role-description-${i}`).val();
+        }
+        reactMessage.react_roles.push(reactRole);
+    }
+    socket.emit('send', 'react-role-message', JSON.stringify(reactMessage));
 }
 
 // Code from w3schools
