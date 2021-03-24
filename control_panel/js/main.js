@@ -1,4 +1,4 @@
-$('#web-version').text('v2021-03-19-0331');
+$('#web-version').text('v2021-03-24-0211');
 // Variables for page parts
 // Login form variables
 var input_authkey = $('#authkey');
@@ -17,9 +17,37 @@ var currentUser, currentUserAvatar; // Currently logged in user's name and avata
 var currentBot, currentBotAvatar;
 var guildRolesFiltered = [];
 
+// Weekly chart variables
+var weeklyVoiceHours = [];
+var ctx = document.getElementById('weekly-chart').getContext('2d');
+var weeklyChart = new Chart(ctx, {
+    // The type of chart we want to create
+    type: 'bar',
+
+    // The data for our dataset
+    data: {
+        labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+        datasets: [{
+            label: 'Total Voice Hours',
+            backgroundColor: 'rgba(13, 110, 253, 0.2)',
+            borderColor: 'rgba(13, 110, 253, 1)',
+            borderWidth: 2
+        }]
+    },
+    // Configuration options go here
+    options: {
+        maintainAspectRatio: false,
+        legend: {
+            labels: {
+                fontColor: 'white'
+            }
+        }
+    }
+});
+weeklyChart.canvas.parentNode.style.height = '360px';
+
 // Page events
 button_login.on('click', (event) => {
-    event.preventDefault();
     login('button');
 });
 
@@ -176,6 +204,11 @@ function initListeners() {
             }
         }
 
+        if (type == 'weekly-voice-hours') {
+            weeklyVoiceHours = JSON.parse(data);
+            weeklyChart.data.datasets[0].data = weeklyVoiceHours;
+        }
+
         if (type == 'guild-roles-filtered') {
             guildRolesFiltered = JSON.parse(data);
             setReactRolePicker();
@@ -193,6 +226,7 @@ function handleSuccessfulConnect() {
     socket.emit('get', 'connection-info');
     socket.emit('get', 'guild-text-channels');
     socket.emit('get', 'voice-hours');
+    socket.emit('get', 'weekly-voice-hours');
     socket.emit('get', 'guild-roles-filtered');
 }
 

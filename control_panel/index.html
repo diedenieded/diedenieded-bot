@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Control Panel</title>
   <link rel="stylesheet" href="./css/bootstrap.min.css">
+  <link rel="stylesheet" href="./css/Chart.min.css">
   <link rel="stylesheet" href="./css/main.css">
   <link rel="shortcut icon" href="img/icon.ico" type="image/x-icon">
 </head>
@@ -66,7 +67,7 @@
                   <input type="checkbox" class="form-check-input" id="persistentLogin">
                   <label class="form-check-label" for="persistentLogin">Stay logged in</label>
                 </div>
-                <button type="submit" id="login" class="btn btn-primary">Login</button>
+                <button type="button" id="login" class="btn btn-primary">Login</button>
               </form>
             </div>
           </div>
@@ -92,6 +93,7 @@
             </div>
             <div class="col">
               <h2>Weekly Trends</h2>
+              <canvas id="weekly-chart"></canvas>
             </div>
           </div>
         </div>
@@ -252,6 +254,7 @@
   <script src="./js/jquery-3.6.0.min.js"></script>
   <script src="./js/bootstrap.bundle.min.js"></script>
   <script src="./js/socket.io.min.js"></script>
+  <script src="./js/Chart.bundle.min.js"></script>
   <script src="./js/main.js"></script>
 </body>
 
