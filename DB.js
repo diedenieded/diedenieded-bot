@@ -107,24 +107,45 @@ class External {
 
 class ReactMessage {
     id; roles; channel;
-    constructor(id, pairs, channel) {
+    constructor(id, channel, roles) {
+        this.id = '-1';
+        this.channel = '-1';
         this.roles = [];
-        if (id && pairs && channel) {
+        if (id) {
             this.id = id;
+        }
+        if (channel) {
             this.channel = channel;
-            pairs.forEach(pair => {
-                this.addPair(pair.emoji, pair.role_id);
+        }
+        if (roles) {
+            roles.forEach(role => {
+                let r = new ReactRole(role.emoji, role.role_id);
+                role.users.forEach(user => {
+                    r.users.push(user);
+                });
+                this.roles.push(r);
             });
-        } else {
-            this.id = '-1';
         }
     }
+}
 
-    addPair(emoji, roleID) {
-        this.roles.push({
-            emoji: emoji,
-            role_id: roleID
-        });
+class ReactRole {
+    emoji; role_id; users;
+    constructor(emoji, role_id, users) {
+        this.emoji = '';
+        this.role_id = -1;
+        this.users = [];
+        if (emoji) {
+            this.emoji = emoji;
+        }
+        if (role_id) {
+            this.role_id = role_id;
+        }
+        if (users) {
+            users.forEach(user => {
+                this.users.push(user);
+            });
+        }
     }
 }
 
@@ -157,12 +178,7 @@ class DB {
             // Doing this instead of temp.reactMsgIDs = this.reactMsgIDs 
             // preserves data type to work better with intellisense
             temp.reactMessages.forEach(reactMessage => {
-                let temp = new ReactMessage();
-                temp.id = reactMessage.id;
-                temp.channel = reactMessage.channel;
-                reactMessage.roles.forEach(role => {
-                    temp.addPair(role.emoji, role.role_id);
-                });
+                let temp = new ReactMessage(reactMessage.id, reactMessage.channel, reactMessage.roles);
                 this.reactMessages.push(temp);
             });
         }
@@ -187,4 +203,5 @@ module.exports.Users = Users;
 module.exports.Config = Config;
 module.exports.Week = Week;
 module.exports.ReactMessage = ReactMessage;
+module.exports.ReactRole = ReactRole;
 // External is not exported as it is designed for use within DB.js
