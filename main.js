@@ -79,8 +79,18 @@ function HoursHelperSendEmbed(tempIDs, channel, afterFunction) {
                     tempNum++;
                     let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
                     let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
+                    let rank = '';
+                    if (tempNum == 1) {
+                        rank = '🥇';
+                    } else if (tempNum == 2) {
+                        rank = '🥈';
+                    } else if (tempNum == 3) {
+                        rank = '🥉';
+                    } else {
+                        rank = `**${tempNum}.**`;
+                    }
                     verbose(`[HOURS] ${member.displayName}: ${totalHours}h ${tempDuration.format('mm[m ]ss[s]')}`);
-                    tempString = tempString.concat(`**${tempNum}.** ${member.displayName} • **${totalHours}h ${tempDuration.format('mm[m ]ss[s]')}**\n`);
+                    tempString = tempString.concat(`${rank} ${member.displayName} • **${totalHours}h ${tempDuration.format('mm[m ]ss[s]')}**\n`);
                 });
                 tempEmbed.setTitle('Total voice chat hours');
                 tempEmbed.setDescription(tempString);
