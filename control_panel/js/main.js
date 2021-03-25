@@ -1,4 +1,4 @@
-$('#web-version').text('v2021-03-25-0712');
+$('#web-version').text('v2021-03-25-0801');
 // Variables for page parts
 // Login form variables
 var input_authkey = $('#authkey');
@@ -213,6 +213,7 @@ function initListeners() {
         if (type == 'weekly-voice-hours') {
             weeklyVoiceHours = JSON.parse(data);
             weeklyChart.data.datasets[0].data = weeklyVoiceHours;
+            weeklyChart.update();
         }
 
         if (type == 'guild-roles-filtered') {
