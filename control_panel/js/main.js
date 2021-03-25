@@ -1,4 +1,4 @@
-$('#web-version').text('v2021-03-24-0211');
+$('#web-version').text('v2021-03-25-0712');
 // Variables for page parts
 // Login form variables
 var input_authkey = $('#authkey');
@@ -23,7 +23,6 @@ var ctx = document.getElementById('weekly-chart').getContext('2d');
 var weeklyChart = new Chart(ctx, {
     // The type of chart we want to create
     type: 'bar',
-
     // The data for our dataset
     data: {
         labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
@@ -36,6 +35,13 @@ var weeklyChart = new Chart(ctx, {
     },
     // Configuration options go here
     options: {
+        scales: {
+            yAxes: [{
+                ticks: {
+                    beginAtZero: true
+                }
+            }]
+        },
         maintainAspectRatio: false,
         legend: {
             labels: {
@@ -253,6 +259,11 @@ function sendNotification(color, message) {
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     `);
+}
+
+function voiceHoursRefresh() {
+    socket.emit('get', 'voice-hours');
+    socket.emit('get', 'weekly-voice-hours');
 }
 
 function useUserInfo() {
