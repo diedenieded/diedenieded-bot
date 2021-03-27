@@ -580,21 +580,21 @@ client.on('messageReactionRemove', messageReaction => {
                     tempUsers.push(user.id);
                 }
             });
-        });
-        // Other way round
-        // Compare reacted users from DB to reacted user ids extracted from messages
-        // User that doesn't exist in messages have their role removed and removed from DB
-        let role = reactMessage.roles.find(f => f.emoji == messageReaction.emoji.toString());
-        role.users.forEach(rUser => {
-            // Bot check not needed here because only users are added to reactMessage.users, check main.js:529
-            if (!tempUsers.includes(rUser)) {
-                // Find role id in DB according to emoji string in messageReaction
-                removeRole(rUser, role.role_id, () => {
-                    let index = role.users.findIndex(elm => elm == rUser);
-                    role.users.splice(index, 1);
-                    db.write();
-                });
-            }
+            // Other way round
+            // Compare reacted users from DB to reacted user ids extracted from messages
+            // User that doesn't exist in messages have their role removed and removed from DB
+            let role = reactMessage.roles.find(f => f.emoji == messageReaction.emoji.toString());
+            role.users.forEach(rUser => {
+                // Bot check not needed here because only users are added to reactMessage.users, check main.js:529
+                if (!tempUsers.includes(rUser)) {
+                    // Find role id in DB according to emoji string in messageReaction
+                    removeRole(rUser, role.role_id, () => {
+                        let index = role.users.findIndex(elm => elm == rUser);
+                        role.users.splice(index, 1);
+                        db.write();
+                    });
+                }
+            });
         });
     }
 });
@@ -878,183 +878,183 @@ function createReactRoleMessage(data) {
 
 if (ENABLE_CONTROL_PANEL) {
     client.on('ready', () => {
-    const PORT = 3000;
-    const express = require('express');
-    const app = express();
-    const http = require('http').Server(app);
-    const io = require('socket.io')(http, {
-        cors: {
-            origin: "http://52.77.118.111:3000",
-            methods: ["GET", "POST"]
-        }
-    });
+        const PORT = 3000;
+        const express = require('express');
+        const app = express();
+        const http = require('http').Server(app);
+        const io = require('socket.io')(http, {
+            cors: {
+                origin: "http://52.77.118.111:3000",
+                methods: ["GET", "POST"]
+            }
+        });
 
-    app.use(express.static('control_panel'));
+        app.use(express.static('control_panel'));
 
-    io.on('connection', (socket) => {
-        let currentAuthPair = returnAuth(socket.handshake.auth.token);
-        if (currentAuthPair == null) {
-            socket.disconnect(true);
-            verbose('[DBOTCTRL] Invalid credentials, connection has been terminated');
-            return;
-        }
+        io.on('connection', (socket) => {
+            let currentAuthPair = returnAuth(socket.handshake.auth.token);
+            if (currentAuthPair == null) {
+                socket.disconnect(true);
+                verbose('[DBOTCTRL] Invalid credentials, connection has been terminated');
+                return;
+            }
 
-        verbose('[DBOTCTRL] Control panel has connected');
-        socket.on('get', type => {
-            if (type == 'connection-info') {
-                if (currentGuild) {
-                    currentGuild.members.fetch(currentAuthPair.user_id).then(member => {
-                        let tempJSON = {
-                            server: currentGuild.name,
-                            server_avatar: currentGuild.iconURL({
-                                dyanamic: true,
-                                size: 64
-                            }),
-                            bot: botDisplayName,
-                            bot_avatar: client.user.displayAvatarURL({
-                                dyanamic: true,
-                                size: 64
-                            }),
-                            user: member.displayName,
-                            user_avatar: member.user.displayAvatarURL({
-                                dyanamic: true,
-                                size: 64
-                            }),
-                            server_version: version
-                        }
-                        socket.emit('reply', 'connection-info', JSON.stringify(tempJSON));
-                    });
+            verbose('[DBOTCTRL] Control panel has connected');
+            socket.on('get', type => {
+                if (type == 'connection-info') {
+                    if (currentGuild) {
+                        currentGuild.members.fetch(currentAuthPair.user_id).then(member => {
+                            let tempJSON = {
+                                server: currentGuild.name,
+                                server_avatar: currentGuild.iconURL({
+                                    dyanamic: true,
+                                    size: 64
+                                }),
+                                bot: botDisplayName,
+                                bot_avatar: client.user.displayAvatarURL({
+                                    dyanamic: true,
+                                    size: 64
+                                }),
+                                user: member.displayName,
+                                user_avatar: member.user.displayAvatarURL({
+                                    dyanamic: true,
+                                    size: 64
+                                }),
+                                server_version: version
+                            }
+                            socket.emit('reply', 'connection-info', JSON.stringify(tempJSON));
+                        });
+                    }
                 }
-            }
-            if (type == 'guild-text-channels') {
-                if (currentGuild) {
-                    let arr = [];
-                    currentGuild.channels.cache.each(channel => {
-                        if (channel.type == 'text') {
-                            let temp = {
-                                name: channel.name,
-                                id: channel.id
-                            };
-                            arr.push(temp);
-                        }
-                    });
-                    let jayson = JSON.stringify(arr);
-                    socket.emit('reply', 'guild-text-channels', jayson);
+                if (type == 'guild-text-channels') {
+                    if (currentGuild) {
+                        let arr = [];
+                        currentGuild.channels.cache.each(channel => {
+                            if (channel.type == 'text') {
+                                let temp = {
+                                    name: channel.name,
+                                    id: channel.id
+                                };
+                                arr.push(temp);
+                            }
+                        });
+                        let jayson = JSON.stringify(arr);
+                        socket.emit('reply', 'guild-text-channels', jayson);
+                    }
                 }
-            }
 
-            if (type == 'voice-hours') {
-                sendCurrentVoiceMembers();
-            }
-
-            if (type == 'weekly-voice-hours') {
-                if (db.week) {
-                    console.log('[DBOT] Fetching weekly voice hours and sending to control panel');
-                    let tempHours = [
-                        parseFloat(dayjs.duration(db.week.sunday).asHours().toFixed(2)),
-                        parseFloat(dayjs.duration(db.week.monday).asHours().toFixed(2)),
-                        parseFloat(dayjs.duration(db.week.tuesday).asHours().toFixed(2)),
-                        parseFloat(dayjs.duration(db.week.wednesday).asHours().toFixed(2)),
-                        parseFloat(dayjs.duration(db.week.thursday).asHours().toFixed(2)),
-                        parseFloat(dayjs.duration(db.week.friday).asHours().toFixed(2)),
-                        parseFloat(dayjs.duration(db.week.saturday).asHours().toFixed(2))
-                    ];
-                    socket.emit('reply', 'weekly-voice-hours', JSON.stringify(tempHours));
+                if (type == 'voice-hours') {
+                    sendCurrentVoiceMembers();
                 }
-            }
 
-            if (type == 'guild-roles-filtered') {
-                if (currentGuild) {
-                    console.log('[DBOT] Fetching filtered roles and sending to control panel');
-                    let tempRoles = [];
-                    currentGuild.roles.fetch().then(roles => {
-                        roles.cache.each(role => {
-                            // Filter rules
-                            // Exclude bot roles, role.managed
-                            // Exclude administrator roles, role.permissions.serialize().ADMINISTRATOR == true
-                            // Exclude strings with invisible character 7356 used as spacers, role.name.charCodeAt(0) != 7356
-                            if (!role.managed &&
-                                !role.permissions.serialize().ADMINISTRATOR &&
-                                role.name.charCodeAt(0) != 7356 &&
-                                role.name != '@everyone') {
-                                let tempRole = {
-                                    name: role.name,
-                                    id: role.id
+                if (type == 'weekly-voice-hours') {
+                    if (db.week) {
+                        console.log('[DBOT] Fetching weekly voice hours and sending to control panel');
+                        let tempHours = [
+                            parseFloat(dayjs.duration(db.week.sunday).asHours().toFixed(2)),
+                            parseFloat(dayjs.duration(db.week.monday).asHours().toFixed(2)),
+                            parseFloat(dayjs.duration(db.week.tuesday).asHours().toFixed(2)),
+                            parseFloat(dayjs.duration(db.week.wednesday).asHours().toFixed(2)),
+                            parseFloat(dayjs.duration(db.week.thursday).asHours().toFixed(2)),
+                            parseFloat(dayjs.duration(db.week.friday).asHours().toFixed(2)),
+                            parseFloat(dayjs.duration(db.week.saturday).asHours().toFixed(2))
+                        ];
+                        socket.emit('reply', 'weekly-voice-hours', JSON.stringify(tempHours));
+                    }
+                }
+
+                if (type == 'guild-roles-filtered') {
+                    if (currentGuild) {
+                        console.log('[DBOT] Fetching filtered roles and sending to control panel');
+                        let tempRoles = [];
+                        currentGuild.roles.fetch().then(roles => {
+                            roles.cache.each(role => {
+                                // Filter rules
+                                // Exclude bot roles, role.managed
+                                // Exclude administrator roles, role.permissions.serialize().ADMINISTRATOR == true
+                                // Exclude strings with invisible character 7356 used as spacers, role.name.charCodeAt(0) != 7356
+                                if (!role.managed &&
+                                    !role.permissions.serialize().ADMINISTRATOR &&
+                                    role.name.charCodeAt(0) != 7356 &&
+                                    role.name != '@everyone') {
+                                    let tempRole = {
+                                        name: role.name,
+                                        id: role.id
+                                    }
+                                    tempRoles.push(tempRole);
                                 }
-                                tempRoles.push(tempRole);
-                            }
-                        });
+                            });
 
-                        // Code from w3schools
-                        // https://www.w3schools.com/js/js_array_sort.asp
-                        tempRoles.sort((a, b) => {
-                            var x = a.name.toLowerCase();
-                            var y = b.name.toLowerCase();
-                            if (x < y) { return -1; }
-                            if (x > y) { return 1; }
-                            return 0;
-                        }
-                        );
-                        socket.emit('reply', 'guild-roles-filtered', JSON.stringify(tempRoles));
+                            // Code from w3schools
+                            // https://www.w3schools.com/js/js_array_sort.asp
+                            tempRoles.sort((a, b) => {
+                                var x = a.name.toLowerCase();
+                                var y = b.name.toLowerCase();
+                                if (x < y) { return -1; }
+                                if (x > y) { return 1; }
+                                return 0;
+                            }
+                            );
+                            socket.emit('reply', 'guild-roles-filtered', JSON.stringify(tempRoles));
+                        });
+                    }
+                }
+            });
+
+            socket.on('send', (type, data) => {
+                if (type == 'embed') {
+                    let temp = JSON.parse(data);
+                    webSendEmbed(temp);
+                }
+
+                if (type == 'react-role-message') {
+                    let temp = JSON.parse(data);
+                    createReactRoleMessage(temp);
+                }
+            });
+
+            // Send info to control panel: uptime, currentGuild.name, currentGuild avatarURL, botDisplayName, 
+            // client.user.avatarURL({format: 'gif', dynamic: true, size: 32})
+            function sendCurrentVoiceMembers() {
+                if (currentGuild && db.users) {
+                    console.log('[DBOT] Fetching voice hours and sending to control panel');
+                    var tempIDs = [];
+                    var tempUsers = [];
+
+                    db.users.getArray().forEach(user => {
+                        tempIDs.push(user.id);
                     });
+                    currentGuild.members.fetch({ user: tempIDs })
+                        .then(members => {
+                            members.each(member => {
+                                let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
+                                let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
+                                let timeString = '';
+                                if (totalHours > 0) {
+                                    timeString = timeString.concat(`${totalHours} hours `);
+                                }
+                                timeString = timeString.concat(`${tempDuration.format('mm[ minutes and ]ss[ seconds]')}`);
+                                let user = {
+                                    displayName: member.displayName,
+                                    avatarURL: `https://cdn.discordapp.com/avatars/${member.id}/${member.user.avatar}.png?size=256`,
+                                    timeraw: `${tempDuration.toJSON()}`,
+                                    time: timeString
+                                }
+                                tempUsers.push(user);
+                            });
+                            tempUsers = tempUsers.sort((a, b) => {
+                                let aSort = dayjs.duration(a.timeraw).asSeconds();
+                                let bSort = dayjs.duration(b.timeraw).asSeconds();
+                                return bSort - aSort;
+                            });
+                            socket.emit('reply', 'voice-hours', JSON.stringify(tempUsers));
+                        }).catch(console.error);
                 }
             }
         });
 
-        socket.on('send', (type, data) => {
-            if (type == 'embed') {
-                let temp = JSON.parse(data);
-                webSendEmbed(temp);
-            }
-
-            if (type == 'react-role-message') {
-                let temp = JSON.parse(data);
-                createReactRoleMessage(temp);
-            }
+        http.listen(PORT, () => {
+            console.log(`[DBOTCTRL] Socket.IO listening on port ${PORT}`);
         });
-
-        // Send info to control panel: uptime, currentGuild.name, currentGuild avatarURL, botDisplayName, 
-        // client.user.avatarURL({format: 'gif', dynamic: true, size: 32})
-        function sendCurrentVoiceMembers() {
-            if (currentGuild && db.users) {
-                console.log('[DBOT] Fetching voice hours and sending to control panel');
-                var tempIDs = [];
-                var tempUsers = [];
-
-                db.users.getArray().forEach(user => {
-                    tempIDs.push(user.id);
-                });
-                currentGuild.members.fetch({ user: tempIDs })
-                    .then(members => {
-                        members.each(member => {
-                            let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
-                            let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
-                            let timeString = '';
-                            if (totalHours > 0) {
-                                timeString = timeString.concat(`${totalHours} hours `);
-                            }
-                            timeString = timeString.concat(`${tempDuration.format('mm[ minutes and ]ss[ seconds]')}`);
-                            let user = {
-                                displayName: member.displayName,
-                                avatarURL: `https://cdn.discordapp.com/avatars/${member.id}/${member.user.avatar}.png?size=256`,
-                                timeraw: `${tempDuration.toJSON()}`,
-                                time: timeString
-                            }
-                            tempUsers.push(user);
-                        });
-                        tempUsers = tempUsers.sort((a, b) => {
-                            let aSort = dayjs.duration(a.timeraw).asSeconds();
-                            let bSort = dayjs.duration(b.timeraw).asSeconds();
-                            return bSort - aSort;
-                        });
-                        socket.emit('reply', 'voice-hours', JSON.stringify(tempUsers));
-                    }).catch(console.error);
-            }
-        }
-    });
-
-    http.listen(PORT, () => {
-        console.log(`[DBOTCTRL] Socket.IO listening on port ${PORT}`);
-    });
     });
 }
