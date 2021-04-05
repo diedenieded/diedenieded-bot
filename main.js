@@ -884,13 +884,6 @@ if (ENABLE_CONTROL_PANEL) {
         const express = require('express');
         const app = express();
         const http = require('http').Server(app);
-        // const io = require('socket.io')(http, {
-        //     cors: {
-        //         origin: "http://52.77.118.111:3000",
-        //         methods: ["GET", "POST"]
-        //     }
-        // });
-        
         const io = require('socket.io')(http);
 
         app.use(express.static('control_panel'));
