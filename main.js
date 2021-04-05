@@ -545,6 +545,7 @@ client.on('voiceStateUpdate', (oldVoiceState, newVoiceState) => {
  * To keep track of role reacts
  */
 client.on('messageReactionAdd', messageReaction => {
+    verbose("Message reaction added");
     let reactMessage = db.reactMessages.find(message => message.id == messageReaction.message.id);
     if (reactMessage) {
         messageReaction.users.fetch({ limit: 100 }).then(users => {
@@ -570,6 +571,7 @@ client.on('messageReactionAdd', messageReaction => {
 });
 
 client.on('messageReactionRemove', messageReaction => {
+    verbose("Message reaction added");
     let reactMessage = db.reactMessages.find(message => message.id == messageReaction.message.id);
     if (reactMessage) {
         let tempUsers = [];
