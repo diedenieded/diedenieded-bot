@@ -571,7 +571,7 @@ client.on('messageReactionAdd', messageReaction => {
 });
 
 client.on('messageReactionRemove', messageReaction => {
-    verbose("Message reaction added");
+    verbose("Message reaction removed");
     let reactMessage = db.reactMessages.find(message => message.id == messageReaction.message.id);
     if (reactMessage) {
         let tempUsers = [];
