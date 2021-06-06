@@ -76,21 +76,28 @@ function HoursHelperSendEmbed(tempIDs, channel, afterFunction) {
                 verbose(`[HOURS] Fetching members from guild`);
                 verbose(`[HOURS] Members fetched: `);
                 tempUsers.each(member => {
-                    tempNum++;
-                    let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
-                    let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
-                    let rank = '';
-                    if (tempNum == 1) {
-                        rank = '🥇';
-                    } else if (tempNum == 2) {
-                        rank = '🥈';
-                    } else if (tempNum == 3) {
-                        rank = '🥉';
-                    } else {
-                        rank = `**${tempNum}.**`;
+                    let tempDBmember = db.users.findByID(member.id);
+                    if (tempDBmember.totalTime == 'PT0D') {
+                        tempDBmember.totalTime = 'PT0S'; // Sloppy fix for NaNs, which are caused by new users with invalid time strings
+                        db.write();
                     }
-                    verbose(`[HOURS] ${member.displayName}: ${totalHours}h ${tempDuration.format('mm[m ]ss[s]')}`);
-                    tempString = tempString.concat(`${rank} ${member.displayName} • **${totalHours}h ${tempDuration.format('mm[m ]ss[s]')}**\n`);
+                    let tempDuration = dayjs.duration(0).add(db.users.findByID(member.id).totalTime);
+                    if (tempDuration.asMilliseconds() > 0) {
+                        tempNum++;
+                        let totalHours = (tempDuration.days() * 24) + tempDuration.hours();
+                        let rank = '';
+                        if (tempNum == 1) {
+                            rank = '🥇';
+                        } else if (tempNum == 2) {
+                            rank = '🥈';
+                        } else if (tempNum == 3) {
+                            rank = '🥉';
+                        } else {
+                            rank = `**${tempNum}.**`;
+                        }
+                        verbose(`[HOURS] ${member.displayName}: ${totalHours}h ${tempDuration.format('mm[m ]ss[s]')}`);
+                        tempString = tempString.concat(`${rank} ${member.displayName} • **${totalHours}h ${tempDuration.format('mm[m ]ss[s]')}**\n`);
+                    }
                 });
                 tempEmbed.setTitle('Total voice chat hours');
                 tempEmbed.setDescription(tempString);
@@ -389,7 +396,7 @@ client.on('message', message => {
                     HoursHelperSendEmbed(tempIDs, message.channel);
                 } else if (message.mentions.users.size > 0) {
                     // Print hour of mentioned users
-                    verbose(`[HOURS] Thereforem displaying mentioned users`);
+                    verbose(`[HOURS] Therefore displaying mentioned users`);
                     message.mentions.users.each(user => tempIDs.push(user.id));
                     HoursHelperSendEmbed(tempIDs, message.channel);
                 }
@@ -491,7 +498,7 @@ client.on('message', message => {
                 message.channel.send(embed);
                 break;
             default:
-                message.reply(`command doesn't exist, use ${db.config.prefix}help to view available commaands`);
+                message.reply(`command doesn't exist, use ${db.config.prefix}help to view available commands`);
         }
     }
 });
@@ -515,7 +522,7 @@ client.on('voiceStateUpdate', (oldVoiceState, newVoiceState) => {
                 toIncrement.push(newVoiceState.member);
             } else {
                 verbose(`[DBOT] ${newVoiceState.member.displayName} does not exist in db, creating new user in DB and adding to toIncrement`);
-                db.users.addUser(new DB.User(newVoiceState.member.id, 'PT0D'));
+                db.users.addUser(new DB.User(newVoiceState.member.id, 'PT0S'));
                 db.write();
                 toIncrement.push(newVoiceState.member);
             }
