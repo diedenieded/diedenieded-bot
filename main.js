@@ -2,7 +2,7 @@
  * diedenieded-bot
  * diedenieded
  */
-const version = "v2021-03-24-0002";
+const version = "v2021-06-12-0004";
 const Discord = require('discord.js');
 const client = new Discord.Client({ autoReconnect: true, partials: ["USER", "CHANNEL", "GUILD_MEMBER", "MESSAGE", "REACTION"] });
 const dayjs = require('dayjs');
@@ -416,7 +416,8 @@ client.on('message', message => {
                     tempEmbed.addFields(
                         { name: `${db.config.prefix}prefix [symbol]`, value: 'Sets the prefix to bot commands. MUST BE ONE SYMBOL LONG!' },
                         { name: `${db.config.prefix}setannouncement [channel id]`, value: 'Sets the announcement channel for bot to send announcements' },
-                        { name: `${db.config.prefix}mention [channel id] [user, role or everyone]`, value: 'Mentions specified people' }
+                        { name: `${db.config.prefix}mention [#channel] [user, role or everyone]`, value: 'Mentions specified people' },
+                        { name: `${db.config.prefix}msgchannel [#channel] [message]`, value: 'Sends a message to the specified channel' }
                     );
                 }
 
@@ -441,13 +442,13 @@ client.on('message', message => {
                     }
                 }
                 break;
-            case 'dm':
-                if (!isAdministrator) {
-                    message.reply('you do not have permission to use this command');
-                    break;
-                }
-                directMessage(message.author.id, "Test");
-                break;
+            // case 'dm':
+            //     if (!isAdministrator) {
+            //         message.reply('you do not have permission to use this command');
+            //         break;
+            //     }
+            //     directMessage(message.author.id, "Test");
+            //     break;
             case 'mention':
                 if (!isAdministrator) {
                     message.reply('you do not have permission to use this command');
@@ -463,12 +464,17 @@ client.on('message', message => {
                     break;
                 }
 
-                let channelID = args.substring(0, args.indexOf(' '));
-                console.log(channelID);
-                let channel = currentGuild.channels.resolve(channelID);
-                if (!channel) {
-                    message.reply('invalid channel ID!');
-                    break;
+                let channel;
+                if (message.mentions.channels.first()) {
+                    channel = message.mentions.channels.first();
+                } else {
+                    let channelID = args.substring(0, args.indexOf(' '));
+                    channel = currentGuild.channels.resolve(channelID);
+                    // console.log(channelID);
+                    if (!channel) {
+                        message.reply('invalid channel ID!');
+                        break;
+                    }
                 }
 
                 console.log(message.mentions.everyone);
@@ -488,6 +494,48 @@ client.on('message', message => {
                     channel.send(mentions);
                 }
                 break;
+
+            case 'msgchannel':
+                if (!isAdministrator) {
+                    message.reply('you do not have permission to use this command');
+                    break;
+                }
+
+                if (args) {
+                    if (args.length == 0) {
+                        message.reply('you need to choose a channel and mention users or roles');
+                        break;
+                    }
+                } else {
+                    message.reply('you need to choose a channel and mention users or roles');
+                    break;
+                }
+
+                let ch;
+                if (message.mentions.channels.first()) {
+                    ch = message.mentions.channels.first();
+                } else {
+                    let channelID = args.substring(0, args.indexOf(' '));
+                    ch = currentGuild.channels.resolve(channelID);
+                    // console.log(channelID);
+                    if (!ch) {
+                        message.reply('invalid channel ID!');
+                        break;
+                    }
+                }
+
+                let string = '';
+                let arr = args.split(' ');
+                for (let i = 1; i < arr.length; i++) {
+                    string += arr[i];
+                    if ((i + 1) != arr.length) {
+                        string += ' ';
+                    }
+                }
+                console.log(string);
+                ch.send(string);
+                break;
+
             case 'test':
                 if (!isAdministrator) {
                     message.reply('you do not have permission to use this command');
