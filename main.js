@@ -327,7 +327,7 @@ async function htmlToImage(htmlPath) {
     let browser = await puppeteer.launch({
         headless: true,
         defaultViewport: {
-            width: 400,
+            width: 500,
             height: 445,
             isLandscape: false,
             deviceScaleFactor: 2
