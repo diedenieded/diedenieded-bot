@@ -9,7 +9,7 @@ html {
 .main {
     background: #353535;
     height: 445px;
-    width: 400px;
+    width: 500px;
 }
 
 .header {
@@ -31,11 +31,11 @@ html {
 }
 
 .header .info {
-    font-size: 14px;
-    /* font-weight: 400; */
+    font-size: 16px;
     background-color: rgba(0, 0, 0, 0.5);
     display: inline-block;
-    padding: 5px;
+    padding: 10px;
+    border-radius: 10px;
 }
 
 .entries {
@@ -50,7 +50,6 @@ html {
     border-radius: 10px;
     height: 87px;
     position: relative;
-    width: 370px;
 
     background: rgb(79, 79, 79);
     background: linear-gradient(45deg, rgba(79, 79, 79, 1) 49%, rgba(111, 111, 111, 1) 100%);
@@ -69,11 +68,11 @@ html {
 .large-entry > .name-tag {
     display: flex;
     flex-direction: row;
-    font-size: 24px;
+    font-size: 26px;
     left: 96px;
     position: absolute;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-    top: 13px;
+    top: 9px;
 }
 
 .large-entry .name {
@@ -87,11 +86,11 @@ html {
 .large-entry .time {
     display: flex;
     flex-direction: row;
-    font-size: 20px;
+    font-size: 22px;
     left: 96px;
     position: absolute;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-    top: 46px;
+    top: 44px;
 }
 
 .large-entry .time > * {
@@ -118,7 +117,6 @@ html {
     border-radius: 10px;
     height: 60px;
     position: relative;
-    width: 370px;
 
     background: rgb(79, 79, 79);
     background: linear-gradient(45deg, rgba(79, 79, 79, 1) 49%, rgba(111, 111, 111, 1) 100%);
@@ -136,15 +134,15 @@ html {
 .small-entry > .name-tag {
     display: flex;
     flex-direction: column;
-
+    height: 100%;
+    justify-content: center;
     left: 93px;
     position: absolute;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-    top: 8px;
 }
 
 .small-entry .name {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
 }
 
@@ -156,11 +154,11 @@ html {
 .small-entry .time {
     display: flex;
     flex-direction: row;
-    font-size: 18px;
+    font-size: 20px;
     right: 5px;
     position: absolute;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-    top: 17px;
+    top: 15px;
 }
 
 .small-entry .time > * {
