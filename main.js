@@ -325,6 +325,7 @@ function HoursImageSend(tempIDs, authorID, channel) {
 
 async function htmlToImage(htmlPath) {
     let browser = await puppeteer.launch({
+        headless: true,
         defaultViewport: {
             width: 400,
             height: 445,
@@ -334,7 +335,7 @@ async function htmlToImage(htmlPath) {
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
     }).then(verbose('[HTML2IMG] Browser started'));
     let page = await browser.newPage();
-    await page.goto(`${__dirname}/data/hours.html`, {
+    await page.goto(`file://${__dirname}/data/hours.html`, {
         waitUntil: 'load'
     }).then(verbose('[HTML2IMG] Page Loaded'));
     await page.screenshot({
