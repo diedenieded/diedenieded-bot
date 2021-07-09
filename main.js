@@ -10,6 +10,9 @@ dayjs.extend(require('dayjs/plugin/duration'));
 const DB = require('./DB');
 const schedule = require('node-schedule');
 const nodeEmoji = require('node-emoji');
+const e = require('express');
+const puppeteer = require('puppeteer');
+const fs = require('fs');
 var monthlyReset, weeklyReset;
 const defaultEmbedColor = '#27e9e9';
 
@@ -115,6 +118,189 @@ function HoursHelperSendEmbed(tempIDs, channel, afterFunction) {
                 afterFunction();
             }
         }).catch(console.error);
+}
+
+function HoursImageSend(tempIDs, authorID, channel) {
+    verbose(`HoursImageSend(${tempIDs}, ${authorID}, ${channel})`);
+    currentGuild.members.fetch({ user: tempIDs }).then(users => {
+        // Filter users with less than 5 seconds of voice time
+        let filteredUsers = users.filter(user => {
+            let tempDuration = dayjs.duration(0).add(db.users.findByID(user.id).totalTime);
+            if (tempDuration.asMilliseconds() > 0) {
+                return true;
+            } else {
+                return false;
+            }
+        });
+
+        let sortedUsersCollection = filteredUsers.sort((a, b) => {
+            let aSort = dayjs.duration(db.users.findByID(a.id).totalTime).asSeconds();
+            let bSort = dayjs.duration(db.users.findByID(b.id).totalTime).asSeconds();
+            return bSort - aSort;
+        });
+
+        // Convert Discord.Collection into an Array
+        let sortedUsers = [];
+        sortedUsersCollection.each(user => {
+            sortedUsers.push(user);
+        });
+
+        let html = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <title>Hours</title>
+            <link rel="stylesheet" href="hours.css">
+            <link rel="preconnect" href="https://fonts.googleapis.com">
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+            <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;700&display=swap" rel="stylesheet">
+        </head>
+        <body>
+            <div class="main">
+                <div class="header">
+                    <div class="title">Voice Hours</div>
+                    <div class="info"><span id="prefix">${db.config.prefix}</span>hoursAll for old list</div>
+                </div>
+                <div class="entries">
+        `;
+
+        // Grab top users from sortedUsers
+        let topUsers = [];
+
+        // If less than 5 users, use all users
+        if (sortedUsers.length < 5) {
+            topUsers = sortedUsers;
+        } else {
+            // Otherwise get top 5
+            topUsers.push(sortedUsers[0]);
+            topUsers.push(sortedUsers[1]);
+            topUsers.push(sortedUsers[2]);
+            topUsers.push(sortedUsers[3]);
+            topUsers.push(sortedUsers[4]);
+        }
+
+        // Check if author belongs to top 5
+        let authorIndex = topUsers.findIndex(user => user.id == authorID);
+        let authorTop = false;
+
+        if (authorIndex != -1) {
+            authorTop = true;
+        } else {
+            // If not in top 5, check his index in sortedUsers
+            authorIndex = sortedUsers.findIndex(user => user.id == authorID);
+        }
+
+        if (authorTop) {
+            for (let i = 0; i < topUsers.length; i++) {
+                const user = topUsers[i];
+                let name = user.displayName;
+                let tag = user.user.discriminator;
+                let rank = i + 1;
+                let duration = dayjs.duration(0).add(db.users.findByID(user.id).totalTime);
+                let hours = (duration.days() * 24) + duration.hours();
+                let minutes = duration.minutes();
+                let seconds = duration.seconds();
+                console.log(`${hours} ${minutes} ${seconds}`);
+
+                verbose(`Processing user: ${name}#${tag}`);
+
+                if (authorIndex == i) {
+                    html += `<div class="large-entry`;
+
+                    if (rank > 3) {
+                        html += ` selected `;
+                    }
+                } else {
+                    html += `<div class="small-entry`;
+                }
+
+                switch (rank) {
+                    case 1:
+                        html += ` gold">`;
+                        break;
+                    case 2:
+                        html += ` silver">`;
+                        break;
+                    case 3:
+                        html += ` bronze">`;
+                        break;
+                    default:
+                        html += `">`;
+                        break;
+                }
+
+                html += `<img src="${user.user.displayAvatarURL({
+                    format: 'webp',
+                    dynamic: true,
+                    size: 128
+                })}">`;
+
+                html += `
+                <div class="name-tag">
+                    <div class="name">${name}</div>
+                    <div class="tag">#${tag}</div>
+                </div>`;
+
+                html += `
+                <div class="time">
+                    <div class="hours">
+                        <div class="t-val">${hours}</div>
+                        <div class="t-pre">h</div>
+                    </div>
+                    <div class="minutes">
+                        <div class="t-val">${minutes}</div>
+                        <div class="t-pre">m</div>
+                    </div>
+                    <div class="seconds">
+                        <div class="t-val">${seconds}</div>
+                        <div class="t-pre">s</div>
+                    </div>
+                </div>
+                <div class="rank">${rank}</div>`;
+
+                html += '</div>';
+            }
+        }
+
+        // TODO if author not top
+
+        html += `
+        </div>
+        </div>
+        </body>
+        </html>
+        `;
+
+        fs.writeFileSync('data/hours.html', html);
+        htmlToImage('data/hours.html').then(() => {
+            channel.send({
+                files: [
+                    './hours.png'
+                ]
+            });
+        });
+    });
+}
+
+async function htmlToImage(htmlPath) {
+    let browser = await puppeteer.launch({
+        defaultViewport: {
+            width: 400,
+            height: 445,
+            isLandscape: false,
+            deviceScaleFactor: 2
+        },
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
+    }).then(verbose('browser launched'));
+    let page = await browser.newPage();
+    await page.goto(`${__dirname}/data/hours.html`, {
+        waitUntil: 'load'
+    });
+    await page.screenshot({
+        path: 'hours.png'
+    });
+
+    await browser.close();
 }
 
 // Force toIncrement to be updated with members currently in voice channels, useful when bot has disconnected and keeps counting
@@ -381,6 +567,19 @@ client.on('message', message => {
                 }
                 break;
             case 'hours':
+                let tUsers = [];
+                let tID = [];
+                verbose(`[HOURS] Displaying hours image`);
+                tUsers = JSON.parse(JSON.stringify(db.users.getArray())); // Deep copy
+                verbose(`[HOURS] Contents of tUsers:`);
+                tUsers.forEach(user => {
+                    verbose(`[HOURS] ${user.id}`);
+                    tID.push(user.id);
+                });
+                HoursImageSend(tID, message.author.id, message.channel);
+                break;
+
+            case 'hoursAll':
                 let tempUsers = [];
                 let tempIDs = [];
                 verbose(`[HOURS] Number of users mentioned: ${message.mentions.users.size}`);
@@ -401,6 +600,7 @@ client.on('message', message => {
                     HoursHelperSendEmbed(tempIDs, message.channel);
                 }
                 break;
+
             case 'help':
                 let tempEmbed = new Discord.MessageEmbed();
                 tempEmbed.setAuthor(`${db.config.prefix}help`);
@@ -409,7 +609,8 @@ client.on('message', message => {
                 tempEmbed.setTimestamp();
                 tempEmbed.setColor(defaultEmbedColor);
                 tempEmbed.addFields(
-                    { name: `${db.config.prefix}hours [user...]`, value: 'Displays the total voice chat members. Arguments can either be empty to show all members\'s hours, or @user to show that user\'s hours' },
+                    { name: `${db.config.prefix}hours`, value: 'Displays the total voice hours of a member' },
+                    { name: `${db.config.prefix}hoursAll`, value: 'Displays the total voice hours of all members' },
                     { name: `${db.config.prefix}ping`, value: `Pong! Shows average latency between ${botDisplayName} and you` },
                 );
                 if (isAdministrator) {
