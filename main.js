@@ -164,84 +164,84 @@ function HoursImageSend(tempIDs, authorID, channel) {
                 <div class="entries">
         `;
 
-        // Grab top users from sortedUsers
-        let topUsers = [];
+        let retrieveLength;
 
-        // If less than 5 users, use all users
         if (sortedUsers.length < 5) {
-            topUsers = sortedUsers;
+            // If less than 5 users, use all users
+            retrieveLength = sortedUsers.length;
         } else {
             // Otherwise get top 5
-            topUsers.push(sortedUsers[0]);
-            topUsers.push(sortedUsers[1]);
-            topUsers.push(sortedUsers[2]);
-            topUsers.push(sortedUsers[3]);
-            topUsers.push(sortedUsers[4]);
+            retrieveLength = 5;
         }
 
         // Check if author belongs to top 5
-        let authorIndex = topUsers.findIndex(user => user.id == authorID);
-        let authorTop = false;
+        let authorIndex = sortedUsers.findIndex(user => user.id == authorID);
+        let authorTop;
 
-        if (authorIndex != -1) {
+        if (authorIndex < 5) {
+            // If author is in top 5, retrieve length is 5
             authorTop = true;
+            verbose('[HOURS] Author is in top 5');
         } else {
-            // If not in top 5, check his index in sortedUsers
-            authorIndex = sortedUsers.findIndex(user => user.id == authorID);
+            // If author is not in top 5, retrieve length is 4
+            // Then author will be separately retrieved and added to end
+            authorTop = false
+            retrieveLength = 4;
+            verbose('[HOURS] Author is not in top 5');
         }
 
-        if (authorTop) {
-            for (let i = 0; i < topUsers.length; i++) {
-                const user = topUsers[i];
-                let name = user.displayName;
-                let tag = user.user.discriminator;
-                let rank = i + 1;
-                let duration = dayjs.duration(0).add(db.users.findByID(user.id).totalTime);
-                let hours = (duration.days() * 24) + duration.hours();
-                let minutes = duration.minutes();
-                let seconds = duration.seconds();
-                console.log(`${hours} ${minutes} ${seconds}`);
+        for (let i = 0; i < retrieveLength; i++) {
+            const user = sortedUsers[i];
+            let name = user.displayName;
+            let tag = user.user.discriminator;
+            let rank = i + 1;
+            let duration = dayjs.duration(0).add(db.users.findByID(user.id).totalTime);
+            let hours = (duration.days() * 24) + duration.hours();
+            let minutes = duration.minutes();
+            let seconds = duration.seconds();
+            let imageURL = user.user.displayAvatarURL({
+                format: 'webp',
+                dynamic: true,
+                size: 128
+            });
+            
+            verbose(`[HOURS] Processing user: ${name}#${tag}`);
+            verbose(`[HOURS] ${hours} ${minutes} ${seconds}`);
 
-                verbose(`Processing user: ${name}#${tag}`);
+            if (authorIndex == i) {
+                html += `<div class="large-entry`;
 
-                if (authorIndex == i) {
-                    html += `<div class="large-entry`;
-
-                    if (rank > 3) {
-                        html += ` selected `;
-                    }
-                } else {
-                    html += `<div class="small-entry`;
+                if (rank > 3) {
+                    html += ` selected `;
                 }
+            } else {
+                html += `<div class="small-entry`;
+            }
 
-                switch (rank) {
-                    case 1:
-                        html += ` gold">`;
-                        break;
-                    case 2:
-                        html += ` silver">`;
-                        break;
-                    case 3:
-                        html += ` bronze">`;
-                        break;
-                    default:
-                        html += `">`;
-                        break;
-                }
+            switch (rank) {
+                case 1:
+                    html += ` gold">`;
+                    break;
+                case 2:
+                    html += ` silver">`;
+                    break;
+                case 3:
+                    html += ` bronze">`;
+                    break;
+                default:
+                    html += `">`;
+                    break;
+            }
 
-                html += `<img src="${user.user.displayAvatarURL({
-                    format: 'webp',
-                    dynamic: true,
-                    size: 128
-                })}">`;
+            html += `<img src="${imageURL}">`;
 
-                html += `
+            html += `
                 <div class="name-tag">
                     <div class="name">${name}</div>
                     <div class="tag">#${tag}</div>
                 </div>`;
 
-                html += `
+            html += `
                 <div class="time">
                     <div class="hours">
                         <div class="t-val">${hours}</div>
@@ -258,11 +258,52 @@ function HoursImageSend(tempIDs, authorID, channel) {
                 </div>
                 <div class="rank">${rank}</div>`;
 
-                html += '</div>';
-            }
+            html += '</div>';
         }
 
-        // TODO if author not top
+        if (!authorTop) {
+            const user = sortedUsers[authorIndex];
+            let name = user.displayName;
+            let tag = user.user.discriminator;
+            let rank = authorIndex + 1;
+            let duration = dayjs.duration(0).add(db.users.findByID(user.id).totalTime);
+            let hours = (duration.days() * 24) + duration.hours();
+            let minutes = duration.minutes();
+            let seconds = duration.seconds();
+            let imageURL = user.user.displayAvatarURL({
+                format: 'webp',
+                dynamic: true,
+                size: 128
+            });
+
+            verbose(`[HOURS] Processing user: ${name}#${tag}`);
+            verbose(`[HOURS] ${hours} ${minutes} ${seconds}`);
+
+            html += `
+            <div class="large-entry selected">
+                <img src="${imageURL}">
+                <div class="name-tag">
+                    <div class="name">${name}</div>
+                    <div class="tag">#${tag}</div>
+                </div>
+                <div class="time">
+                    <div class="hours">
+                        <div class="t-val">${hours}</div>
+                        <div class="t-pre">h</div>
+                    </div>
+                    <div class="minutes">
+                        <div class="t-val">${minutes}</div>
+                        <div class="t-pre">m</div>
+                    </div>
+                    <div class="seconds">
+                        <div class="t-val">${seconds}</div>
+                        <div class="t-pre">s</div>
+                    </div>
+                </div>
+                <div class="rank">${rank}</div>
+            </div>
+            `;
+        }
 
         html += `
         </div>
@@ -277,7 +318,7 @@ function HoursImageSend(tempIDs, authorID, channel) {
                 files: [
                     './hours.png'
                 ]
-            });
+            }).then(verbose('[HOURS] Image sent'));
         });
     });
 }
@@ -291,16 +332,16 @@ async function htmlToImage(htmlPath) {
             deviceScaleFactor: 2
         },
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
-    }).then(verbose('browser launched'));
+    }).then(verbose('[HTML2IMG] Browser started'));
     let page = await browser.newPage();
     await page.goto(`${__dirname}/data/hours.html`, {
         waitUntil: 'load'
-    });
+    }).then(verbose('[HTML2IMG] Page Loaded'));
     await page.screenshot({
         path: 'hours.png'
-    });
+    }).then(verbose('[HTML2IMG] Page screnshotted'));
 
-    await browser.close();
+    await browser.close().then(verbose('[HTML2IMG] Browser closed'));
 }
 
 // Force toIncrement to be updated with members currently in voice channels, useful when bot has disconnected and keeps counting
