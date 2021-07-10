@@ -204,7 +204,7 @@ function HoursImageSend(tempIDs, authorID, channel) {
                 dynamic: true,
                 size: 128
             });
-            
+
             verbose(`[HOURS] Processing user: ${name}#${tag}`);
             verbose(`[HOURS] ${hours} ${minutes} ${seconds}`);
 
@@ -609,16 +609,23 @@ client.on('message', message => {
                 }
                 break;
             case 'hours':
-                let tUsers = [];
-                let tID = [];
-                verbose(`[HOURS] Displaying hours image`);
-                tUsers = JSON.parse(JSON.stringify(db.users.getArray())); // Deep copy
-                verbose(`[HOURS] Contents of tUsers:`);
-                tUsers.forEach(user => {
-                    verbose(`[HOURS] ${user.id}`);
-                    tID.push(user.id);
-                });
-                HoursImageSend(tID, message.author.id, message.channel);
+                if (db.users.exists(message.author.id)) {
+                    verbose(`[HOURS] ${message.author.username} has entry in db`);
+                    let tUsers = [];
+                    let tID = [];
+                    verbose(`[HOURS] Displaying hours image`);
+                    tUsers = JSON.parse(JSON.stringify(db.users.getArray())); // Deep copy
+                    verbose(`[HOURS] Contents of tUsers:`);
+
+                    tUsers.forEach(user => {
+                        verbose(`[HOURS] ${user.id}`);
+                        tID.push(user.id);
+                    });
+                    HoursImageSend(tID, message.author.id, message.channel);
+                } else {
+                    verbose(`[HOURS] ${message.author.username} does not have entry in db`);
+                    message.reply(`you do not have any voice hours accumulated! Use ${db.config.prefix}hoursAll to view everyone's voice hours`);
+                }
                 break;
 
             case 'hoursAll':
